@@ -387,7 +387,7 @@ if (ghostView != null) ghostView.SetVisible(false);
                 float a = Mathf.Clamp01(t / dur);
                 // easeOutCubic
                 float eased = 1f - Mathf.Pow(1f - a, 3f);
-                float angle = Mathf.LerpUnclamped(0f, 90f + overshoot, eased);
+                float angle = Mathf.LerpUnclamped(0f, -90f - overshoot, eased);
                 _visualRoot.localRotation = Quaternion.Euler(0f, 0f, angle);
 
                 t += Time.deltaTime;
@@ -402,7 +402,7 @@ if (ghostView != null) ghostView.SetVisible(false);
                 float a = Mathf.Clamp01(t / settleDur);
                 // easeOutQuart
                 float eased = 1f - Mathf.Pow(1f - a, 4f);
-                float angle = Mathf.LerpUnclamped(90f + overshoot, 90f, eased);
+                float angle = Mathf.LerpUnclamped(-90f - overshoot, -90f, eased);
                 _visualRoot.localRotation = Quaternion.Euler(0f, 0f, angle);
 
                 t += Time.deltaTime;
@@ -677,22 +677,36 @@ private void AutoFindRefs()
             return true;
         }
 
-        private bool DoesAnyTileOverlapGrid(Vector3 piecePos, float minX, float maxX, float minY, float maxY)
+        
+        private bool DoesAnyTileOverlapGrid(Vector3 piecePos, float gridMinX, float gridMaxX, float gridMinY, float gridMaxY)
         {
             float stepX = _mapping.cellStep.x;
             float stepY = _mapping.cellStep.y;
 
+            float halfX = stepX * 0.5f;
+            float halfY = stepY * 0.5f;
+
             for (int i = 0; i < _localCells.Length; i++)
             {
                 Vector2Int lc = _localCells[i];
-                Vector3 tileCenter = piecePos + new Vector3(lc.x * stepX, lc.y * stepY, 0f);
+                Vector3 center = piecePos + new Vector3(lc.x * stepX, lc.y * stepY, 0f);
 
-                if (tileCenter.x >= minX && tileCenter.x <= maxX && tileCenter.y >= minY && tileCenter.y <= maxY)
+                float tileMinX = center.x - halfX;
+                float tileMaxX = center.x + halfX;
+                float tileMinY = center.y - halfY;
+                float tileMaxY = center.y + halfY;
+
+                // AABB intersection (inclusive, so even "edge touch" counts as overlap).
+                bool overlapX = tileMaxX >= gridMinX && tileMinX <= gridMaxX;
+                bool overlapY = tileMaxY >= gridMinY && tileMinY <= gridMaxY;
+
+                if (overlapX && overlapY)
                     return true;
             }
 
             return false;
         }
+
 
         private void GetGridWorldBounds(out float minX, out float maxX, out float minY, out float maxY)
         {

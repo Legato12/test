@@ -1,0 +1,46 @@
+# --- Unity defaults ---
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+Recordings/
+_UnitySnapshot
+Assets/AssetStoreTools*
+
+# C# / VS / Rider
+*.csproj
+*.sln
+*.unityproj
+*.pidb
+*.user
+*.userprefs
+*.booproj
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.vs/
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Android / build outputs
+*.apk
+*.aab
+.gradle/
+Build/
+
+# Project-specific
+Assets/XR_Showcase/Generated/
+Assets/XR_Showcase/Trash/
+Assets/Scripts/*.zip
+*.tmp
+*.unitypackage
+*.keystore

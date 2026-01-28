@@ -28,11 +28,17 @@ namespace Phase0
         public bool enableBoneFollow = true;
         public string headBoneName = "head";
         public string faceBoneName = "face";
+        [Min(0.01f)] public float boneVelocityScale = 4f;
         [Range(0f, 25f)] public float headTiltDegrees = 10f;
         [Range(1f, 40f)] public float headFollowStiffness = 18f;
         [Range(0f, 30f)] public float headNoShakeDegrees = 14f;
         [Min(0.01f)] public float headNoShakeDuration = 0.28f;
         [Range(0f, 20f)] public float faceBob = 6f;
         [Range(1f, 40f)] public float faceFollowStiffness = 14f;
+        [Header("Face Clamp (local bone offsets)")]
+        public Vector2 faceOffsetXMinMax = new Vector2(-20f, 70f);
+        public Vector2 faceOffsetYMinMax = new Vector2(-40f, 40f);
+        [Header("Spine Animation")]
+        public bool pauseSpineWhileDragging = true;
     }
 }

@@ -22,11 +22,15 @@ MonoBehaviour:
   dragSpeedForMax: 6
   rotateTapScale: {x: 1.03, y: 0.97}
   enableBoneFollow: 1
-  headBoneName: head
-  faceBoneName: face
+  headBoneName: Head
+  faceBoneName: Face
+  boneVelocityScale: 0.01
   headTiltDegrees: 10
   headFollowStiffness: 18
   headNoShakeDegrees: 14
   headNoShakeDuration: 0.28
   faceBob: 6
   faceFollowStiffness: 14
+  faceOffsetXMinMax: {x: -20, y: 70}
+  faceOffsetYMinMax: {x: -40, y: 40}
+  pauseSpineWhileDragging: 0

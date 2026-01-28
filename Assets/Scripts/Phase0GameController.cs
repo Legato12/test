@@ -157,7 +157,153 @@ namespace Phase0
 
             if (_held && pointer.up)
             {
-                OnPointerUp(pointer);
+1) Зафиксировать “якорь” фигуры (1 Transform) и делать ВСЁ по нему
+
+Цель: и подсветка (ghost), и валидатор, и позиция кота должны использовать один и тот же anchor.
+
+Проверка
+
+В Hierarchy найди:
+
+ActivePiece_L (корень фигуры)
+
+SpineAnchor (куда ты прицепил Spine объект)
+
+L_Tile_0..3 (квадратики)
+
+Правило:
+
+Перемещается только ActivePiece_L (root).
+
+SpineAnchor должен быть локально (0,0,0) внутри ActivePiece_L.
+
+Spine объект (SkeletonAnimation GO) должен быть ребёнком SpineAnchor и тоже иметь локальные (0,0,0) и rotation=0.
+
+Фикс
+
+Поставь SpineAnchor.localPosition = (0,0,0)
+
+Поставь Spine GO localPosition = (0,0,0) и localRotation = identity
+
+Убедись что scale одинаковый (особенно если SkeletonData scale = 0.01 — это ок, но тогда трансформ Spine GO не должен дополнительно скейлиться ещё раз)
+
+2) Проверить “pivot” L-формы: center offset одинаков для всех rotations
+
+Сейчас зелёные клетки подсвечиваются правильно, значит core-матрица клеток верная, а вот визуальный offset фигуры после снапа/драга не совпадает.
+
+Быстрый тест
+
+Включи Gizmos/Debug и временно отрисуй:
+
+world position ActivePiece_L
+
+world position “snap target” (центр клетки или центр набора клеток)
+
+Если зелёные клетки справа-сверху, а кот смещён — значит ActivePiece_L.position ставится в одну точку, а кот рисуется с другим “local center”.
+
+Фикс (самый надёжный)
+
+Сделай так: визуальный кот всегда привязывается к computed cell centers, а не “как получится”.
+
+Для Cursor:
+Найди в Phase0PieceTilesView (или где ты позиционируешь L_Tile_i) функцию, которая выставляет локальные позиции тайлов L.
+
+Убедиться, что:
+
+позиции тайлов задаются как (col,row) * cellSize без дополнительных half-cell смещений
+
+pivot фигуры принят одинаково: например anchor = центр клетки pivotTile (обычно L-пивот — нижний-левый tile массива)
+
+Если у тебя anchor считается как “min row/min col”, то для правого-верхнего будет сдвиг из-за rounding. Исправление ниже.
+
+3) Исправить world→grid conversion: использовать RoundToInt (с bias), не Floor
+
+Симптом “в одном углу идеально, в другом смещение” — классика Floor/Ceil + отрицательные координаты/смещение центра клетки.
+
+Что попросить Cursor проверить
+
+Найти функцию типа:
+
+WorldToCell(...)
+
+TryGetHoverCell(...)
+
+GetCellFromWorld(...)
+
+И проверить:
+
+используется ли Mathf.FloorToInt
+
+используется ли origin/gridMin и cellSize корректно
+
+Правильная формула (устойчиво)
+
+Считать координату относительно gridOrigin (центр клетки (0,0) или левый-нижний угол — но выбрать одно!)
+
+Использовать RoundToInt к центрам клеток:
+
+Если gridOrigin — центр клетки (0,0):
+
+var local = (world - gridOrigin);
+int col = Mathf.RoundToInt(local.x / cellSize);
+int row = Mathf.RoundToInt(local.y / cellSize);
+
+
+Если gridOrigin — левый-нижний угол клетки (0,0):
+
+var local = (world - gridOrigin);
+int col = Mathf.FloorToInt((local.x / cellSize) + 0.5f);
+int row = Mathf.FloorToInt((local.y / cellSize) + 0.5f);
+
+
+Важно: в обоих случаях snap-позиция потом должна быть:
+
+world = gridOrigin + new Vector3(col * cellSize, row * cellSize, 0);
+
+4) Убедиться, что Snap позиция берётся из ТЕХ ЖЕ col/row, что и ghost
+
+Частая ошибка: ghost рисуется по hoverCell, а фигура снапается по validatedCell или по другому pivotCell.
+
+Инструкция Cursor
+
+В момент, когда ghost зелёный, вывести в лог:
+
+hoverCell
+
+snapCell
+
+pieceAnchorWorld
+
+computedSnapWorld
+
+Если hoverCell == snapCell, а world разные — проблема в pivot.
+Если hoverCell != snapCell — проблема в конверсии/rounding.
+
+5) Spine-specific: SkeletonDataAsset Scale = 0.01 и двойной скейл
+
+На скрине у тебя SkeletonDataAsset Scale = 0.01. Это норм, но если:
+
+ты ещё scale’ишь Spine GO или SpineAnchor,
+то offset/поворот может выглядеть “не по центру” в некоторых позициях.
+
+Фикс:
+Оставь scale только в одном месте:
+
+либо SkeletonDataAsset.Scale = 0.01, а transforms = (1,1,1)
+
+либо SkeletonDataAsset scale = 1, а Spine GO scale = 0.01
+
+Что Cursor должен сделать в итоге (короткий план)
+
+Сделать SpineAnchor и Spine GO (0,0,0) локально, без лишних скейлов.
+
+Проверить WorldToCell: заменить Floor на RoundToInt (или floor+0.5).
+
+Убедиться: ghost и snap используют одинаковый cell и одинаковый gridOrigin.
+
+Если всё ещё сдвиг — перенести “pivot” фигуры на фиксированный tile (например L_Tile_0) и снапать по нему.
+
+Если ты скинешь кусок кода функции world→cell и как ты сейчас считаешь pivot (какой tile считается “anchor”), я скажу точно, какой из пунктов у тебя виноват и что заменить одной правкой.                OnPointerUp(pointer);
             }
 
             if (_dragStarted && gameFeelFx != null)
@@ -287,6 +433,9 @@ namespace Phase0
                 {
                     gameFeelFx.OnDropValid();
                 }
+#if UNITY_ANDROID
+                Handheld.Vibrate();
+#endif
             }
             else
             {
@@ -299,6 +448,11 @@ namespace Phase0
                     {
                         gameFeelFx.OnDropInvalid();
                     }
+
+#if UNITY_ANDROID
+                    Handheld.Vibrate();
+                    Handheld.Vibrate();
+#endif
 
                     // Re-occupy original cells if it was placed before
                     if (_isPlacedOnBoard && _lastPlacedWorldCells != null)

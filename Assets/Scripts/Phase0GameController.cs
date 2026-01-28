@@ -26,12 +26,24 @@ namespace Phase0
         [Header("Feel (no external tween libs)")]
         public float followSmoothTime = 0.045f;   // spring-follow feel while dragging
 
+        [Header("Rotate Feel")]
+        public float rotateDuration = 0.18f;
+        public float rotateOvershootDeg = 12f;
+        public float rotateSettleDuration = 0.08f;
+
+        [Header("Bounce Strength")]
+        public float invalidBounceStrength = 1.25f;
+        public float outsidePushBounceStrength = 1.35f;
+        public float outsideSettleDuration = 0.14f;
+        public float outsideSettleBounceStrength = 1.8f;
+
         [Header("Hysteresis")]
         [Tooltip("How far finger must move away from current cell center (in world units) before we switch to a neighbor cell.")]
         public float cellSwitchHysteresisWorld = 0.32f;
 
         private readonly Phase0BoardMapping _mapping = new();
         private GridModel _grid;
+        private int _gridSize;
 
         // Placement state
         private int _rotationCW;
@@ -77,6 +89,7 @@ namespace Phase0
             }
 
             int gridSize = sceneConfig != null ? sceneConfig.gridSize : 4;
+            _gridSize = gridSize;
 
             if (!_mapping.TryAutoInitFromGridRoot(gridRoot, gridSize))
             {
@@ -231,6 +244,7 @@ namespace Phase0
                 return;
             }
 
+
             // Drag drop: valid only if candidate is inside grid and CanPlace == true.
             if (_hasCandidate && _candidateValid)
             {
@@ -248,19 +262,37 @@ namespace Phase0
                 _lastPlacedWorldCells = worldCells;
                 _isPlacedOnBoard = true;
             }
-            else
+            else if (_hasCandidate)
             {
-                // Invalid: bounce back to origin-before-drag (requirement)
-                StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f, 1.25f));
+                // Invalid (red ghost over grid): bounce back to origin-before-drag (requirement)
+                StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f, invalidBounceStrength));
 
                 // Re-occupy original cells if it was placed before
-                if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
+                if (_isPlacedOnBoard && _lastPlacedWorldCells != null && _lastPlacedWorldCells.Length > 0)
                 {
                     _grid.AddOccupied(_lastPlacedWorldCells);
                 }
             }
+            else
+            {
+                // Outside-grid drop: allow parking anywhere on screen.
+                // But piece must NOT overlap the grid area at all. If it overlaps, push it just outside.
+                Vector3 current = activePieceRoot.position;
 
-            if (ghostView != null) ghostView.SetVisible(false);
+                if (TryComputeOutsideGridPushTarget(current, out var pushedTarget))
+                {
+                    StartCoroutine(TweenOvershoot(activePieceRoot, current, pushedTarget, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f, outsidePushBounceStrength));
+                }
+                else
+                {
+                    // Little "landing" jiggle outside the grid (stronger per requirement).
+                    StartCoroutine(TweenOvershoot(activePieceRoot, current, current, outsideSettleDuration, outsideSettleBounceStrength));
+                }
+
+                _isPlacedOnBoard = false;
+                _lastPlacedWorldCells = null;
+            }
+if (ghostView != null) ghostView.SetVisible(false);
         }
 
         private void UpdateCandidateAndGhost(Vector2 pointerWorld)
@@ -345,69 +377,52 @@ namespace Phase0
                 yield break;
             }
 
-            float duration = 0.18f;
-            float target = 90f;
-            float overshoot = 12f;
+            float dur = Mathf.Max(0.05f, rotateDuration);
+            float overshoot = rotateOvershootDeg;
 
+            // Phase A: twist to 90 + overshoot
             float t = 0f;
-            bool swapped = false;
-
-            while (t < duration)
+            while (t < dur)
             {
-                float a = Mathf.Clamp01(t / duration);
-
-                float eased = (a < 0.5f)
-                    ? 1f - Mathf.Pow(1f - (a / 0.5f), 3f)
-                    : 1f - Mathf.Pow(1f - ((a - 0.5f) / 0.5f), 4f);
-
-                float angle = Mathf.LerpUnclamped(0f, target + overshoot, eased);
-
-                if (!swapped && angle >= 45f)
-                {
-                    swapped = true;
-
-                    // Commit logical rotation once mid-twist.
-                    _rotationCW = (_rotationCW + 1) & 3;
-                    RecomputeLocalCells();
-
-                    var pieceTiles = activePieceRoot != null ? activePieceRoot.GetComponent<Phase0PieceTilesView>() : null;
-                    if (pieceTiles != null)
-                        pieceTiles.ApplyLocalCells(_localCells, _mapping.cellStep.x, _mapping.cellStep.y);
-
-                    angle -= 90f;
-                }
-                else if (swapped)
-                {
-                    angle -= 90f;
-                }
-
+                float a = Mathf.Clamp01(t / dur);
+                // easeOutCubic
+                float eased = 1f - Mathf.Pow(1f - a, 3f);
+                float angle = Mathf.LerpUnclamped(0f, 90f + overshoot, eased);
                 _visualRoot.localRotation = Quaternion.Euler(0f, 0f, angle);
 
                 t += Time.deltaTime;
                 yield return null;
             }
 
-            // Settle back to identity
-            float settleT = 0f;
-            float settleDur = 0.08f;
-            float startAngle = Mathf.DeltaAngle(0f, _visualRoot.localEulerAngles.z);
-
-            while (settleT < settleDur)
+            // Phase B: settle back to 90
+            float settleDur = Mathf.Max(0.03f, rotateSettleDuration);
+            t = 0f;
+            while (t < settleDur)
             {
-                float a = Mathf.Clamp01(settleT / settleDur);
+                float a = Mathf.Clamp01(t / settleDur);
+                // easeOutQuart
                 float eased = 1f - Mathf.Pow(1f - a, 4f);
-                float angle = Mathf.Lerp(startAngle, 0f, eased);
+                float angle = Mathf.LerpUnclamped(90f + overshoot, 90f, eased);
                 _visualRoot.localRotation = Quaternion.Euler(0f, 0f, angle);
 
-                settleT += Time.deltaTime;
+                t += Time.deltaTime;
                 yield return null;
             }
 
+            // Commit logical rotation at the end (prevents mid-animation "jump").
+            _rotationCW = (_rotationCW + 1) & 3;
+            RecomputeLocalCells();
+
+            // Apply new layout while visual is still at 90, then instantly reset wrapper to identity
+            // so there's no visible pop (same frame).
+            var pieceTiles = activePieceRoot != null ? activePieceRoot.GetComponent<Phase0PieceTilesView>() : null;
+            if (pieceTiles != null)
+                pieceTiles.ApplyLocalCells(_localCells, _mapping.cellStep.x, _mapping.cellStep.y);
+
             _visualRoot.localRotation = Quaternion.identity;
+
             _isRotating = false;
         }
-
-
 
 
         private void RecomputeLocalCells()
@@ -614,5 +629,85 @@ private void AutoFindRefs()
                 };
             }
         }
-    }
+    
+
+
+        private bool TryComputeOutsideGridPushTarget(Vector3 currentPiecePos, out Vector3 pushedTarget)
+        {
+            pushedTarget = currentPiecePos;
+
+            if (_localCells == null || _localCells.Length == 0)
+                return false;
+
+            GetGridWorldBounds(out float minX, out float maxX, out float minY, out float maxY);
+
+            if (!DoesAnyTileOverlapGrid(currentPiecePos, minX, maxX, minY, maxY))
+                return false;
+
+            float stepX = _mapping.cellStep.x;
+            float stepY = _mapping.cellStep.y;
+
+            int minLocalX = _localCells.Min(c => c.x);
+            int maxLocalX = _localCells.Max(c => c.x);
+            int minLocalY = _localCells.Min(c => c.y);
+            int maxLocalY = _localCells.Max(c => c.y);
+
+            const float eps = 0.001f;
+
+            // Candidate positions that place the whole piece just OUTSIDE the grid rect.
+            float leftPieceX   = (minX - eps) - (maxLocalX * stepX);
+            float rightPieceX  = (maxX + eps) - (minLocalX * stepX);
+            float bottomPieceY = (minY - eps) - (maxLocalY * stepY);
+            float topPieceY    = (maxY + eps) - (minLocalY * stepY);
+
+            Vector3 c0 = new Vector3(leftPieceX, currentPiecePos.y, currentPiecePos.z);
+            Vector3 c1 = new Vector3(rightPieceX, currentPiecePos.y, currentPiecePos.z);
+            Vector3 c2 = new Vector3(currentPiecePos.x, bottomPieceY, currentPiecePos.z);
+            Vector3 c3 = new Vector3(currentPiecePos.x, topPieceY, currentPiecePos.z);
+
+            // pick smallest move
+            Vector3 best = c0;
+            float bestD = (c0 - currentPiecePos).sqrMagnitude;
+
+            float d1 = (c1 - currentPiecePos).sqrMagnitude; if (d1 < bestD) { bestD = d1; best = c1; }
+            float d2 = (c2 - currentPiecePos).sqrMagnitude; if (d2 < bestD) { bestD = d2; best = c2; }
+            float d3 = (c3 - currentPiecePos).sqrMagnitude; if (d3 < bestD) { bestD = d3; best = c3; }
+
+            pushedTarget = ClampToCameraBounds(best, mainCamera, 0.3f);
+            return true;
+        }
+
+        private bool DoesAnyTileOverlapGrid(Vector3 piecePos, float minX, float maxX, float minY, float maxY)
+        {
+            float stepX = _mapping.cellStep.x;
+            float stepY = _mapping.cellStep.y;
+
+            for (int i = 0; i < _localCells.Length; i++)
+            {
+                Vector2Int lc = _localCells[i];
+                Vector3 tileCenter = piecePos + new Vector3(lc.x * stepX, lc.y * stepY, 0f);
+
+                if (tileCenter.x >= minX && tileCenter.x <= maxX && tileCenter.y >= minY && tileCenter.y <= maxY)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void GetGridWorldBounds(out float minX, out float maxX, out float minY, out float maxY)
+        {
+            // Bounds around the 4x4 (or config) grid in world space.
+            Vector3 bl = _mapping.CellToWorldCenter(new Vector2Int(0, 0));
+            Vector3 tr = _mapping.CellToWorldCenter(new Vector2Int(_gridSize - 1, _gridSize - 1));
+
+            float halfX = _mapping.cellStep.x * 0.5f;
+            float halfY = _mapping.cellStep.y * 0.5f;
+
+            minX = bl.x - halfX;
+            minY = bl.y - halfY;
+            maxX = tr.x + halfX;
+            maxY = tr.y + halfY;
+        }
+
+}
 }

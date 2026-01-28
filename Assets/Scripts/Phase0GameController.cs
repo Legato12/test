@@ -40,7 +40,7 @@ namespace Phase0
         private readonly Phase0BoardMapping _mapping = new();
         private readonly Phase0PlacementBrain _brain = new();
 
-        // Placement state
+        // Placement state (controller only; core brain owns rules)
         private bool _held;
         private bool _movedBeyondThreshold;
         private bool _dragStarted;
@@ -130,6 +130,7 @@ namespace Phase0
             }
         }
 
+        // Update loop: input -> core brain -> view updates (FX/ghost).
         private void Update()
         {
             if (mainCamera == null) return;
@@ -151,6 +152,7 @@ namespace Phase0
                 OnPointerUp(pointer);
             }
 
+            // View-only smoothing / squash while dragging.
             if (_dragStarted && gameFeelFx != null)
             {
                 gameFeelFx.UpdateKinematics(activePieceRoot.position);
@@ -217,7 +219,8 @@ namespace Phase0
                     gameFeelFx.UpdateKinematics(activePieceRoot.position);
                 }
 
-                UpdateCandidateAndGhost(pointer.worldPos);
+                // Use the actual piece position (not raw finger) so ghost aligns with spring-follow.
+                UpdateCandidateAndGhost(activePieceRoot.position);
             }
         }
 
@@ -329,6 +332,11 @@ namespace Phase0
             // Ghost view
             if (ghostView != null)
             {
+                if (!_brain.HasCandidate)
+                {
+                    ghostView.SetVisible(false);
+                    return;
+                }
                 ghostView.SetVisible(true);
                 ghostView.transform.position = _mapping.CellToWorldCenter(_brain.CandidateOriginCell);
 

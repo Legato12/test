@@ -2,6 +2,7 @@
 // Put under: Assets/Phase0/Scripts/
 // Pure C# core: grid occupancy + shape rotation math.
 // No Unity scene refs, no physics, no colliders.
+// NOTE: This file is intentionally kept free of MonoBehaviour dependencies.
 
 using System;
 using System.Collections.Generic;

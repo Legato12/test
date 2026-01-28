@@ -287,9 +287,7 @@ namespace Phase0
                 {
                     gameFeelFx.OnDropValid();
                 }
-#if UNITY_ANDROID
-                Handheld.Vibrate();
-#endif
+                Phase0Haptics.Pulse(this, count: 1);
             }
             else
             {
@@ -303,10 +301,7 @@ namespace Phase0
                         gameFeelFx.OnDropInvalid();
                     }
 
-#if UNITY_ANDROID
-                    Handheld.Vibrate();
-                    Handheld.Vibrate();
-#endif
+                    Phase0Haptics.Pulse(this, count: 2, intervalSeconds: 0.05f);
 
                     // Re-occupy original cells if it was placed before
                     if (_isPlacedOnBoard && _lastPlacedWorldCells != null)

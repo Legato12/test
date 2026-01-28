@@ -38,12 +38,9 @@ namespace Phase0
         public float cellSwitchHysteresisWorld = 0.32f;
 
         private readonly Phase0BoardMapping _mapping = new();
-        private GridModel _grid;
+        private readonly Phase0PlacementBrain _brain = new();
 
         // Placement state
-        private int _rotationCW;
-        private Vector2Int[] _localCells;           // rotated+normalized cells
-
         private bool _held;
         private bool _movedBeyondThreshold;
         private bool _dragStarted;
@@ -52,13 +49,7 @@ namespace Phase0
         private Vector3 _velocity;                  // SmoothDamp velocity
         private Vector3 _dragOffsetWorld;
 
-        private Vector2Int _candidateOriginCell;
-        private bool _hasCandidate;
-        private bool _candidateValid;
-
-        private Vector2Int _lastPlacedOriginCell;
-        private Vector2Int[] _lastPlacedWorldCells; // cells currently occupying grid
-        private bool _isPlacedOnBoard;
+        private Vector2Int[] _lastPlacedWorldCells; // cached after placement
 
         private void Awake()
         {
@@ -89,9 +80,7 @@ namespace Phase0
                 return;
             }
 
-            _grid = new GridModel(gridSize);
-
-            // Blocked cells: parse by name suffix "_BLOCKED"
+            // Build blocked list
             var blocked = new List<Vector2Int>();
             foreach (Transform cell in gridRoot)
             {
@@ -101,25 +90,30 @@ namespace Phase0
                 if (TryParseCellName(cell.name, out var coord))
                     blocked.Add(coord);
             }
-            _grid.SetBlocked(blocked);
 
             // Occupied: dummy piece occupies exactly 1 cell (as per requirement).
+            var occupied = new List<Vector2Int>();
             if (dummyPiece != null)
             {
                 var dummyCell = _mapping.WorldToCellRound(dummyPiece.position);
                 if (_mapping.IsInsideGrid(dummyCell))
-                    _grid.AddOccupied(new[] { dummyCell });
+                    occupied.Add(dummyCell);
             }
 
-            // Init rotation + cells
-            RecomputeLocalCells();
+            _brain.Initialize(
+                gridSize,
+                blocked,
+                occupied,
+                shapeDefinition != null ? shapeDefinition.baseCells : null,
+                shapeDefinition != null ? shapeDefinition.pivot : Vector2Int.zero
+            );
 
             // Init views
             var pieceTiles = activePieceRoot != null ? activePieceRoot.GetComponent<Phase0PieceTilesView>() : null;
             if (pieceTiles != null)
             {
                 pieceTiles.AutoCollectTiles();
-                pieceTiles.ApplyLocalCells(_localCells, _mapping.cellStep.x, _mapping.cellStep.y);
+                pieceTiles.ApplyLocalCells(_brain.LocalCells, _mapping.cellStep.x, _mapping.cellStep.y);
             }
 
             if (ghostView != null)
@@ -131,12 +125,9 @@ namespace Phase0
                     if (anyTile != null) ghostView.tileSprite = anyTile.sprite;
                 }
 
-                ghostView.EnsureTiles(_localCells.Length, sceneConfig != null ? sceneConfig.cellSize : 1f);
+                ghostView.EnsureTiles(_brain.LocalCells.Length, sceneConfig != null ? sceneConfig.cellSize : 1f);
                 ghostView.SetVisible(false);
             }
-
-            // If piece starts off-board, treat as not placed.
-            _isPlacedOnBoard = false;
         }
 
         private void Update()
@@ -177,17 +168,14 @@ namespace Phase0
             _pieceOriginBeforeDrag = activePieceRoot.position;
 
             // When picking up from board, clear occupied cells temporarily (so we can re-place)
-            if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
-            {
-                _grid.RemoveOccupied(_lastPlacedWorldCells);
-            }
+            _brain.OnPickup();
 
             // Compute drag offset so it doesn't jump
             var w = pointer.worldPos;
             _dragOffsetWorld = activePieceRoot.position - new Vector3(w.x, w.y, 0f);
 
             // Candidate init
-            _hasCandidate = false;
+            _brain.ResetCandidate();
             if (ghostView != null) ghostView.SetVisible(false);
         }
 
@@ -247,7 +235,7 @@ namespace Phase0
             if (wasTap)
             {
                 // Tap: rotate only when stationary. Do NOT allow rotate while already placed on the board.
-                if (!_isPlacedOnBoard)
+                if (!_brain.IsPlacedOnBoard)
                 {
                     RotateCW();
                     if (gameFeelFx != null)
@@ -259,29 +247,21 @@ namespace Phase0
 
                 // If the piece was previously placed, keep it placed (no movement)
                 // and re-occupy cells.
-                if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
-                {
-                    _grid.AddOccupied(_lastPlacedWorldCells);
-                }
+                _brain.RestorePlacementIfAny();
                 return;
             }
 
             // Drag drop: valid only if candidate is inside grid and CanPlace == true.
-            if (_hasCandidate && _candidateValid)
+            if (_brain.HasCandidate && _brain.CandidateValid)
             {
                 // Snap to candidate origin cell
-                Vector3 snapPos = _mapping.CellToWorldCenter(_candidateOriginCell);
+                Vector3 snapPos = _mapping.CellToWorldCenter(_brain.CandidateOriginCell);
 
                 // Animate with simple overshoot (without external libs)
                 StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, snapPos, sceneConfig != null ? sceneConfig.snapDuration : 0.12f));
 
                 // Mark occupied cells
-                var worldCells = _localCells.Select(c => _candidateOriginCell + c).ToArray();
-                _grid.AddOccupied(worldCells);
-
-                _lastPlacedOriginCell = _candidateOriginCell;
-                _lastPlacedWorldCells = worldCells;
-                _isPlacedOnBoard = true;
+                _lastPlacedWorldCells = _brain.PlaceCandidate();
 
                 if (gameFeelFx != null)
                 {
@@ -292,7 +272,7 @@ namespace Phase0
             else
             {
                 // If we have a candidate (inside grid), invalid = bounce back to origin-before-drag (requirement)
-                if (_hasCandidate)
+                if (_brain.HasCandidate)
                 {
                     StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
 
@@ -304,10 +284,7 @@ namespace Phase0
                     Phase0Haptics.Pulse(this, count: 2, intervalSeconds: 0.05f);
 
                     // Re-occupy original cells if it was placed before
-                    if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
-                    {
-                        _grid.AddOccupied(_lastPlacedWorldCells);
-                    }
+                    _brain.RestorePlacementIfAny();
                 }
                 else
                 {
@@ -326,7 +303,7 @@ namespace Phase0
                         StartCoroutine(TweenOvershoot(activePieceRoot, current, current, 0.10f));
                     }
 
-                    _isPlacedOnBoard = false;
+                    _brain.ClearPlacementOutsideGrid();
                     _lastPlacedWorldCells = null;
                 }
             }
@@ -340,59 +317,40 @@ namespace Phase0
             var approxCell = _mapping.WorldToCellRound(pointerWorld);
             bool inside = _mapping.IsInsideGrid(approxCell);
 
-            if (!inside)
+            bool shouldSwitch = false;
+            if (_brain.HasCandidate)
             {
-                _hasCandidate = false;
-                if (ghostView != null) ghostView.SetVisible(false);
-                return;
+                float d = _mapping.DistanceToCellCenter(pointerWorld, _brain.CandidateOriginCell);
+                shouldSwitch = d >= cellSwitchHysteresisWorld;
             }
 
-            // Hysteresis: only switch cell if far enough from current candidate center.
-            if (_hasCandidate)
-            {
-                float d = _mapping.DistanceToCellCenter(pointerWorld, _candidateOriginCell);
-                if (d < cellSwitchHysteresisWorld)
-                {
-                    // keep candidate
-                }
-                else
-                {
-                    _candidateOriginCell = approxCell;
-                }
-            }
-            else
-            {
-                _candidateOriginCell = approxCell;
-                _hasCandidate = true;
-            }
-
-            // Validate placement at candidate
-            _candidateValid = _grid.CanPlace(_candidateOriginCell, _localCells, out _);
+            _brain.UpdateCandidate(approxCell, inside, shouldSwitch);
 
             // Ghost view
             if (ghostView != null)
             {
                 ghostView.SetVisible(true);
-                ghostView.transform.position = _mapping.CellToWorldCenter(_candidateOriginCell);
+                ghostView.transform.position = _mapping.CellToWorldCenter(_brain.CandidateOriginCell);
 
                 // Apply footprint
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
 
                 // Filter ghost tiles so we never draw outside the grid.
-                var inGridCells = new List<Vector2Int>(_localCells.Length);
-                for (int i = 0; i < _localCells.Length; i++)
+                var localCells = _brain.LocalCells;
+                var inGridCells = new List<Vector2Int>(localCells.Length);
+                for (int i = 0; i < localCells.Length; i++)
                 {
-                    var worldCell = _candidateOriginCell + _localCells[i];
+                    var worldCell = _brain.CandidateOriginCell + localCells[i];
                     if (_mapping.IsInsideGrid(worldCell))
                     {
-                        inGridCells.Add(_localCells[i]);
+                        inGridCells.Add(localCells[i]);
                     }
                 }
 
                 ghostView.EnsureTiles(inGridCells.Count, cellSize);
                 ghostView.ApplyLocalCells(inGridCells.ToArray(), _mapping.cellStep.x, _mapping.cellStep.y);
 
-                if (_candidateValid)
+                if (_brain.CandidateValid)
                 {
                     ghostView.SetColor(new Color(0.25f, 1f, 0.55f, 0.35f));
                 }
@@ -405,14 +363,13 @@ namespace Phase0
 
         private void RotateCW()
         {
-            _rotationCW = (_rotationCW + 1) & 3;
-            RecomputeLocalCells();
+            _brain.RotateCW();
 
             // Update placeholder tiles layout (not rotating transform)
             var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
             if (pieceTiles != null)
             {
-                pieceTiles.ApplyLocalCells(_localCells, _mapping.cellStep.x, _mapping.cellStep.y);
+                pieceTiles.ApplyLocalCells(_brain.LocalCells, _mapping.cellStep.x, _mapping.cellStep.y);
             }
 
             // Visual rotation: rotate the SpineAnchor and apply per-rotation offset to the Spine child.
@@ -421,28 +378,17 @@ namespace Phase0
                 var spineAnchor = activePieceRoot.Find("SpineAnchor");
                 if (spineAnchor != null)
                 {
-                    float angle = -90f * _rotationCW;
+                    float angle = -90f * _brain.RotationCW;
                     spineAnchor.localRotation = Quaternion.Euler(0f, 0f, angle);
 
                     if (spineAnchor.childCount > 0 && spineOffsets != null && spineOffsets.Length >= 4)
                     {
                         var spineChild = spineAnchor.GetChild(0);
-                        var offset = spineOffsets[_rotationCW];
+                        var offset = spineOffsets[_brain.RotationCW];
                         spineChild.localPosition = new Vector3(offset.x, offset.y, spineChild.localPosition.z);
                     }
                 }
             }
-        }
-
-        private void RecomputeLocalCells()
-        {
-            if (shapeDefinition == null || shapeDefinition.baseCells == null || shapeDefinition.baseCells.Length == 0)
-            {
-                _localCells = new[] { Vector2Int.zero };
-                return;
-            }
-
-            _localCells = ShapeRotation.GetRotatedNormalized(shapeDefinition.baseCells, shapeDefinition.pivot, _rotationCW);
         }
 
         private void AutoFindRefs()
@@ -548,9 +494,10 @@ namespace Phase0
             float minX = float.PositiveInfinity, minY = float.PositiveInfinity;
             float maxX = float.NegativeInfinity, maxY = float.NegativeInfinity;
 
-            for (int i = 0; i < _localCells.Length; i++)
+            var localCells = _brain.LocalCells;
+            for (int i = 0; i < localCells.Length; i++)
             {
-                var c = _localCells[i];
+                var c = localCells[i];
                 float cx = piecePos.x + c.x * _mapping.cellStep.x;
                 float cy = piecePos.y + c.y * _mapping.cellStep.y;
 

@@ -26,6 +26,10 @@ namespace Phase0
         [Header("Feel (no external tween libs)")]
         public float followSmoothTime = 0.045f;   // spring-follow feel while dragging
 
+        [Header("Spine Offset (per rotation)")]
+        [Tooltip("Local offsets for Spine child per CW rotation index (0-3).")]
+        public Vector2[] spineOffsets = new Vector2[4];
+
         [Header("Hysteresis")]
         [Tooltip("How far finger must move away from current cell center (in world units) before we switch to a neighbor cell.")]
         public float cellSwitchHysteresisWorld = 0.32f;
@@ -349,6 +353,24 @@ namespace Phase0
             if (pieceTiles != null)
             {
                 pieceTiles.ApplyLocalCells(_localCells, _mapping.cellStep.x, _mapping.cellStep.y);
+            }
+
+            // Visual rotation: rotate the SpineAnchor and apply per-rotation offset to the Spine child.
+            if (activePieceRoot != null)
+            {
+                var spineAnchor = activePieceRoot.Find("SpineAnchor");
+                if (spineAnchor != null)
+                {
+                    float angle = -90f * _rotationCW;
+                    spineAnchor.localRotation = Quaternion.Euler(0f, 0f, angle);
+
+                    if (spineAnchor.childCount > 0 && spineOffsets != null && spineOffsets.Length >= 4)
+                    {
+                        var spineChild = spineAnchor.GetChild(0);
+                        var offset = spineOffsets[_rotationCW];
+                        spineChild.localPosition = new Vector3(offset.x, offset.y, spineChild.localPosition.z);
+                    }
+                }
             }
         }
 

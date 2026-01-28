@@ -1,4 +1,5 @@
 using System;
+using PrimeTween;
 using UnityEngine;
 
 #if SPINE_UNITY
@@ -25,12 +26,7 @@ namespace Phase0
 
         // tween state
         private Vector3 _baseScale;
-        private Vector3 _fromScale, _toScale;
-        private float _t, _dur;
-        private Func<float, float> _ease;
-        private bool _tweening;
-        private Vector3 _overshootTarget;
-        private bool _pendingOvershoot;
+        private Tween _scaleTween;
 
         // invalid "no" shake timer
         private float _noShakeT;
@@ -116,17 +112,13 @@ namespace Phase0
         public void OnPickup()
         {
             if (!Validate()) return;
-            TweenScale(new Vector3(settings.pickupScale.x, settings.pickupScale.y, 1f),
-                settings.quickScaleDuration, EaseOutBack);
-            QueueReturnToBase();
+            PlayScaleSpring(new Vector3(settings.pickupScale.x, settings.pickupScale.y, 1f));
         }
 
         public void OnRotateTap()
         {
             if (!Validate()) return;
-            TweenScale(new Vector3(settings.rotateTapScale.x, settings.rotateTapScale.y, 1f),
-                settings.quickScaleDuration, EaseOutBack);
-            QueueReturnToBase();
+            PlayScaleSpring(new Vector3(settings.rotateTapScale.x, settings.rotateTapScale.y, 1f));
         }
 
         public void OnDropValid()
@@ -144,47 +136,44 @@ namespace Phase0
 
         private void Impact(Vector2 impact)
         {
-            TweenScale(new Vector3(impact.x, impact.y, 1f),
-                settings.quickScaleDuration, EaseOutExpo);
+            Vector3 impactScale = new Vector3(impact.x, impact.y, 1f);
+            Vector3 overshootScale = new Vector3(settings.overshootScale.x, settings.overshootScale.y, 1f);
+            _scaleTween.Stop();
+            var sequence = PrimeTween.Sequence.Create();
+            bool chained = false;
+            Vector3 lastTarget = visualRoot.localScale;
 
-            _overshootTarget = new Vector3(settings.overshootScale.x, settings.overshootScale.y, 1f);
-            _pendingOvershoot = true;
+            if (!IsSameScale(lastTarget, impactScale))
+            {
+                sequence.Chain(Tween.Scale(visualRoot, impactScale, 0.08f, Ease.OutExpo));
+                chained = true;
+                lastTarget = impactScale;
+            }
+
+            if (!IsSameScale(lastTarget, overshootScale))
+            {
+                sequence.Chain(Tween.Scale(visualRoot, overshootScale, 0.10f, Ease.OutBack));
+                chained = true;
+            }
+
+            if (!chained) return;
         }
 
         private void QueueReturnToBase()
         {
-            _overshootTarget = _baseScale;
-            _pendingOvershoot = true;
+            _scaleTween.Stop();
+            if (IsSameScale(visualRoot.localScale, _baseScale)) return;
+            PrimeTween.Sequence.Create()
+                .Chain(Tween.Scale(visualRoot, _baseScale, settings.returnDuration, Ease.OutBack));
         }
 
         private bool Validate() => visualRoot != null && settings != null;
 
         private void Update()
         {
-            TickScaleTween();
             TickDragScale();
             TickNoShake();
             TickBoneFollow();
-        }
-
-        private void TickScaleTween()
-        {
-            if (!_tweening) return;
-
-            _t += Time.deltaTime;
-            float u = _dur <= 1e-5f ? 1f : Mathf.Clamp01(_t / _dur);
-            float e = _ease != null ? _ease(u) : u;
-            visualRoot.localScale = Vector3.LerpUnclamped(_fromScale, _toScale, e);
-
-            if (u >= 1f)
-            {
-                _tweening = false;
-                if (_pendingOvershoot)
-                {
-                    _pendingOvershoot = false;
-                    TweenScale(_overshootTarget, settings.returnDuration, EaseOutBack);
-                }
-            }
         }
 
         private void TickDragScale()
@@ -198,8 +187,31 @@ namespace Phase0
 
             Vector3 target = new Vector3(_baseScale.x * (1f + amt), _baseScale.y * (1f - amt), _baseScale.z);
 
-            if (!_tweening)
+            if (!_scaleTween.isAlive)
                 visualRoot.localScale = Vector3.Lerp(visualRoot.localScale, target, 0.25f);
+        }
+
+        private void PlayScaleSpring(Vector3 peakScale)
+        {
+            _scaleTween.Stop();
+            var sequence = PrimeTween.Sequence.Create();
+            bool chained = false;
+            Vector3 lastTarget = visualRoot.localScale;
+
+            if (!IsSameScale(lastTarget, peakScale))
+            {
+                sequence.Chain(Tween.Scale(visualRoot, peakScale, settings.quickScaleDuration, Ease.OutBack));
+                chained = true;
+                lastTarget = peakScale;
+            }
+
+            if (!IsSameScale(lastTarget, _baseScale))
+            {
+                sequence.Chain(Tween.Scale(visualRoot, _baseScale, settings.returnDuration, Ease.OutBack));
+                chained = true;
+            }
+
+            if (!chained) return;
         }
 
         private void TriggerNoShake()
@@ -321,23 +333,16 @@ namespace Phase0
         }
 #endif
 
-        private void TweenScale(Vector3 to, float duration, Func<float, float> ease)
+        private void TweenScale(Vector3 to, float duration, Ease ease)
         {
-            _fromScale = visualRoot.localScale;
-            _toScale = to;
-            _dur = Mathf.Max(0f, duration);
-            _t = 0f;
-            _ease = ease;
-            _tweening = true;
+            if (IsSameScale(visualRoot.localScale, to)) return;
+            _scaleTween.Stop();
+            _scaleTween = Tween.Scale(visualRoot, to, duration, ease);
         }
 
-        private static float EaseOutExpo(float t) => t >= 1f ? 1f : 1f - Mathf.Pow(2f, -10f * t);
-
-        private static float EaseOutBack(float t)
+        private static bool IsSameScale(Vector3 a, Vector3 b)
         {
-            const float c1 = 1.70158f;
-            const float c3 = c1 + 1f;
-            return 1f + c3 * Mathf.Pow(t - 1f, 3f) + c1 * Mathf.Pow(t - 1f, 2f);
+            return (a - b).sqrMagnitude <= 0.000001f;
         }
     }
 }

@@ -1,0 +1,52 @@
+// ShapeDefinitionSO.cs
+// Runtime ScriptableObject definitions for Phase 0.
+// Put this file under: Assets/Phase0/Scripts/ (NOT inside an Editor folder)
+
+using UnityEngine;
+
+namespace Phase0
+{
+    /// <summary>
+    /// Defines a polyomino shape in grid cells using a BASE orientation only.
+    /// Rotations are computed at runtime in Pure C# core (per test requirements).
+    /// </summary>
+    [CreateAssetMenu(menuName = "Phase0/Shape Definition", fileName = "ShapeDefinition")]
+    public sealed class ShapeDefinitionSO : ScriptableObject
+    {
+        [Header("Identity")]
+        public string shapeId = "L";
+
+        [Header("Base cells (local)")]
+        [Tooltip("Cells in BASE orientation relative to local origin (0,0). Example L: (0,0),(0,1),(0,2),(1,0)")]
+        public Vector2Int[] baseCells;
+
+        [Header("Rotation / pivot")]
+        [Tooltip("Local pivot used for rotation math in the core. Usually (0,0) for polyominoes.")]
+        public Vector2Int pivot = new Vector2Int(0, 0);
+
+        [Header("Optional view hints")]
+        [Tooltip("Suggested sprite/Spine visual size in world units (purely a hint for view layer).")]
+        public float suggestedWorldScale = 1.0f;
+    }
+
+    /// <summary>
+    /// Scene-level config for the prototype (grid size, cell size etc.).
+    /// This is not gameplay logic; just constants / settings.
+    /// </summary>
+    [CreateAssetMenu(menuName = "Phase0/Scene Config", fileName = "SceneConfig")]
+    public sealed class SceneConfigSO : ScriptableObject
+    {
+        [Header("Board")]
+        public int gridSize = 4;              // 4x4
+        public float cellSize = 1.0f;
+        public float cellGap = 0.06f;
+
+        [Header("Input")]
+        [Tooltip("Tap vs drag threshold in pixels (they suggested ~10 px).")]
+        public float tapDragThresholdPx = 10f;
+
+        [Header("Feel (view layer will use these)")]
+        public float snapDuration = 0.12f;
+        public float bounceBackDuration = 0.16f;
+    }
+}

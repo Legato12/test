@@ -52,7 +52,36 @@ namespace Phase0
             }
         }
 
-        public void SetVisible(bool visible)
+        
+        /// <summary>
+        /// Positions ghost tiles, but hides any tiles that would fall outside the grid.
+        /// This prevents red tiles from visually spilling outside the board.
+        /// </summary>
+        public void ApplyLocalCellsClipped(Vector2Int[] localCells, Vector2Int originCell, Phase0BoardMapping mapping)
+        {
+            if (localCells == null || mapping == null) return;
+
+            float stepX = mapping.cellStep.x;
+            float stepY = mapping.cellStep.y;
+
+            for (int i = 0; i < localCells.Length; i++)
+            {
+                var wc = originCell + localCells[i];
+                bool inside = mapping.IsInsideGrid(wc);
+
+                if (i < _tiles.Count)
+                {
+                    _tiles[i].gameObject.SetActive(inside);
+                    if (inside)
+                    {
+                        var c = localCells[i];
+                        _tiles[i].transform.localPosition = new Vector3(c.x * stepX, c.y * stepY, 0f);
+                    }
+                }
+            }
+        }
+
+public void SetVisible(bool visible)
         {
             gameObject.SetActive(visible);
         }

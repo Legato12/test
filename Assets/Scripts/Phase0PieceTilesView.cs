@@ -16,10 +16,12 @@ namespace Phase0
         public void AutoCollectTiles()
         {
             tiles.Clear();
-            foreach (Transform ch in transform)
+            // Collect tiles even if they are under a VisualRoot wrapper.
+            foreach (var tr in GetComponentsInChildren<Transform>(true))
             {
-                if (ch.name.StartsWith("L_Tile_"))
-                    tiles.Add(ch);
+                if (tr == transform) continue;
+                if (tr.name.StartsWith("L_Tile_"))
+                    tiles.Add(tr);
             }
             tiles.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
         }

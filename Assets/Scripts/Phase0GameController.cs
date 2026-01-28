@@ -212,8 +212,11 @@ namespace Phase0
 
             if (wasTap)
             {
-                // Tap: rotate only when stationary (per requirement).
-                RotateCW();
+                // Tap: rotate only when stationary. Do NOT allow rotate while already placed on the board.
+                if (!_isPlacedOnBoard)
+                {
+                    RotateCW();
+                }
                 if (ghostView != null) ghostView.SetVisible(false);
 
                 // If the piece was previously placed, keep it placed (no movement)
@@ -244,13 +247,36 @@ namespace Phase0
             }
             else
             {
-                // Invalid: bounce back to origin-before-drag (requirement)
-                StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
-
-                // Re-occupy original cells if it was placed before
-                if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
+                // If we have a candidate (inside grid), invalid = bounce back to origin-before-drag (requirement)
+                if (_hasCandidate)
                 {
-                    _grid.AddOccupied(_lastPlacedWorldCells);
+                    StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
+
+                    // Re-occupy original cells if it was placed before
+                    if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
+                    {
+                        _grid.AddOccupied(_lastPlacedWorldCells);
+                    }
+                }
+                else
+                {
+                    // Outside-grid drop: allow "parking" outside the grid anywhere on-screen,
+                    // as long as the piece does not overlap the grid area at all.
+                    // If it overlaps the grid, push it just outside (small gap) and tween there.
+                    var current = activePieceRoot.position;
+
+                    if (DoesPieceOverlapGrid(current, out var pushedTarget))
+                    {
+                        StartCoroutine(TweenOvershoot(activePieceRoot, current, pushedTarget, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
+                    }
+                    else
+                    {
+                        // Valid outside placement: keep where released; tiny settle for feel
+                        StartCoroutine(TweenOvershoot(activePieceRoot, current, current, 0.10f));
+                    }
+
+                    _isPlacedOnBoard = false;
+                    _lastPlacedWorldCells = null;
                 }
             }
 
@@ -423,7 +449,70 @@ namespace Phase0
             return world;
         }
 
-        // Lightweight overshoot tween (position only)
+        
+        private bool DoesPieceOverlapGrid(Vector3 piecePos, out Vector3 pushedTarget)
+        {
+            pushedTarget = piecePos;
+
+            float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
+
+            // Grid rect in world (inclusive of cell extents)
+            float gridMinX = _mapping.cell00World.x - cellSize * 0.5f;
+            float gridMinY = _mapping.cell00World.y - cellSize * 0.5f;
+            float gridMaxX = _mapping.cell00World.x + (_mapping.gridSize - 1) * _mapping.cellStep.x + cellSize * 0.5f;
+            float gridMaxY = _mapping.cell00World.y + (_mapping.gridSize - 1) * _mapping.cellStep.y + cellSize * 0.5f;
+
+            // Piece AABB from footprint tiles (based on localCells)
+            float minX = float.PositiveInfinity, minY = float.PositiveInfinity;
+            float maxX = float.NegativeInfinity, maxY = float.NegativeInfinity;
+
+            for (int i = 0; i < _localCells.Length; i++)
+            {
+                var c = _localCells[i];
+                float cx = piecePos.x + c.x * _mapping.cellStep.x;
+                float cy = piecePos.y + c.y * _mapping.cellStep.y;
+
+                minX = Mathf.Min(minX, cx - cellSize * 0.5f);
+                minY = Mathf.Min(minY, cy - cellSize * 0.5f);
+                maxX = Mathf.Max(maxX, cx + cellSize * 0.5f);
+                maxY = Mathf.Max(maxY, cy + cellSize * 0.5f);
+            }
+
+            bool overlaps = !(maxX <= gridMinX || minX >= gridMaxX || maxY <= gridMinY || minY >= gridMaxY);
+            if (!overlaps) return false;
+
+            // Push out by minimal translation + margin
+            const float margin = 0.08f;
+
+            float moveLeft = (gridMinX - maxX) - margin;   // negative
+            float moveRight = (gridMaxX - minX) + margin;  // positive
+            float moveDown = (gridMinY - maxY) - margin;   // negative
+            float moveUp = (gridMaxY - minY) + margin;     // positive
+
+            float bestAbs = float.PositiveInfinity;
+            Vector3 bestDelta = Vector3.zero;
+
+            void Consider(float move, Vector3 delta)
+            {
+                float a = Mathf.Abs(move);
+                if (a < bestAbs)
+                {
+                    bestAbs = a;
+                    bestDelta = delta;
+                }
+            }
+
+            Consider(moveLeft, new Vector3(moveLeft, 0f, 0f));
+            Consider(moveRight, new Vector3(moveRight, 0f, 0f));
+            Consider(moveDown, new Vector3(0f, moveDown, 0f));
+            Consider(moveUp, new Vector3(0f, moveUp, 0f));
+
+            pushedTarget = piecePos + bestDelta;
+            pushedTarget = ClampToCameraBounds(pushedTarget, mainCamera, paddingWorld: 0.3f);
+            return true;
+        }
+
+// Lightweight overshoot tween (position only)
         private System.Collections.IEnumerator TweenOvershoot(Transform tr, Vector3 from, Vector3 to, float duration)
         {
             duration = Mathf.Max(0.01f, duration);

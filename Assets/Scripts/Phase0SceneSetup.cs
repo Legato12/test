@@ -70,16 +70,50 @@ public static class Phase0SceneSetup
         var root = new GameObject(RootName);
 
         // Camera (2D top-down, orthographic)
-        var camGO = new GameObject("MainCamera");
-        camGO.transform.SetParent(root.transform);
-        var cam = camGO.AddComponent<Camera>();
+        // Reuse existing MainCamera if present to avoid duplicate AudioListeners from the template scene.
+        Camera existingMain = null;
+        var existingMainGO = GameObject.FindGameObjectWithTag("MainCamera");
+        if (existingMainGO != null) existingMain = existingMainGO.GetComponent<Camera>();
+
+        GameObject camGO;
+        Camera cam;
+
+        if (existingMain != null)
+        {
+            camGO = existingMain.gameObject;
+            cam = existingMain;
+
+            // Move under our root for cleanliness
+            camGO.transform.SetParent(root.transform, true);
+            camGO.name = "MainCamera";
+        }
+        else
+        {
+            camGO = new GameObject("MainCamera");
+            camGO.transform.SetParent(root.transform);
+            cam = camGO.AddComponent<Camera>();
+            camGO.tag = "MainCamera";
+        }
+
         cam.orthographic = true;
         cam.orthographicSize = 4.4f;
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = new Color(0.08f, 0.09f, 0.11f, 1f);
-        cam.transform.position = new Vector3(0f, 0f, -10f);
-        camGO.tag = "MainCamera";
-        if (camGO.GetComponent<AudioListener>() == null) camGO.AddComponent<AudioListener>();
+        camGO.transform.position = new Vector3(0f, 0f, -10f);
+
+        // Ensure exactly one AudioListener in the scene.
+        // If one already exists anywhere, remove extra listeners on this camera.
+        var listeners = Object.FindObjectsOfType<AudioListener>(true);
+        if (listeners == null || listeners.Length == 0)
+        {
+            if (camGO.GetComponent<AudioListener>() == null) camGO.AddComponent<AudioListener>();
+        }
+        else
+        {
+            var onCam = camGO.GetComponent<AudioListener>();
+            if (onCam != null && onCam != listeners[0])
+                Object.DestroyImmediate(onCam);
+        }
 
         // Scene config placeholder (future scripts can reference)
         var config = new GameObject("SceneConfig");

@@ -26,6 +26,9 @@ namespace Phase0
         [Header("Feel (no external tween libs)")]
         public float followSmoothTime = 0.045f;   // spring-follow feel while dragging
 
+        [Header("Game Feel FX")]
+        public Phase0GameFeelFX gameFeelFx;
+
         [Header("Spine Offset (per rotation)")]
         [Tooltip("Local offsets for Spine child per CW rotation index (0-3).")]
         public Vector2[] spineOffsets = new Vector2[4];
@@ -43,6 +46,7 @@ namespace Phase0
 
         private bool _held;
         private bool _movedBeyondThreshold;
+        private bool _dragStarted;
         private Vector2 _downScreenPos;
         private Vector3 _pieceOriginBeforeDrag;
         private Vector3 _velocity;                  // SmoothDamp velocity
@@ -155,13 +159,20 @@ namespace Phase0
             {
                 OnPointerUp(pointer);
             }
+
+            if (_dragStarted && gameFeelFx != null)
+            {
+                gameFeelFx.UpdateKinematics(activePieceRoot.position);
+            }
         }
 
         private void OnPointerDown(PointerState pointer)
         {
             _held = true;
             _movedBeyondThreshold = false;
+            _dragStarted = false;
             _downScreenPos = pointer.screenPos;
+
 
             _pieceOriginBeforeDrag = activePieceRoot.position;
 
@@ -190,6 +201,16 @@ namespace Phase0
                     _movedBeyondThreshold = true;
             }
 
+            if (_movedBeyondThreshold && !_dragStarted)
+            {
+                _dragStarted = true;
+                if (gameFeelFx != null)
+                {
+                    gameFeelFx.SetDragging(true);
+                    gameFeelFx.OnPickup();
+                }
+            }
+
             // Direct manipulation: once movement begins, piece follows finger with spring delay.
             if (_movedBeyondThreshold)
             {
@@ -203,6 +224,11 @@ namespace Phase0
                     followSmoothTime
                 );
 
+                if (_dragStarted && gameFeelFx != null)
+                {
+                    gameFeelFx.UpdateKinematics(activePieceRoot.position);
+                }
+
                 UpdateCandidateAndGhost(pointer.worldPos);
             }
         }
@@ -213,6 +239,10 @@ namespace Phase0
 
             _held = false;
             _velocity = Vector3.zero;
+            if (_dragStarted && gameFeelFx != null)
+            {
+                gameFeelFx.SetDragging(false);
+            }
 
             if (wasTap)
             {
@@ -220,6 +250,10 @@ namespace Phase0
                 if (!_isPlacedOnBoard)
                 {
                     RotateCW();
+                    if (gameFeelFx != null)
+                    {
+                        gameFeelFx.OnRotateTap();
+                    }
                 }
                 if (ghostView != null) ghostView.SetVisible(false);
 
@@ -248,6 +282,11 @@ namespace Phase0
                 _lastPlacedOriginCell = _candidateOriginCell;
                 _lastPlacedWorldCells = worldCells;
                 _isPlacedOnBoard = true;
+
+                if (gameFeelFx != null)
+                {
+                    gameFeelFx.OnDropValid();
+                }
             }
             else
             {
@@ -255,6 +294,11 @@ namespace Phase0
                 if (_hasCandidate)
                 {
                     StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
+
+                    if (gameFeelFx != null)
+                    {
+                        gameFeelFx.OnDropInvalid();
+                    }
 
                     // Re-occupy original cells if it was placed before
                     if (_isPlacedOnBoard && _lastPlacedWorldCells != null)

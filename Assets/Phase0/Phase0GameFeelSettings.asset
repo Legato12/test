@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 054b291ddabadd443bf735f96f484c49, type: 3}
+  m_Name: Phase0GameFeelSettings
+  m_EditorClassIdentifier: 
+  quickScaleDuration: 0.08
+  returnDuration: 0.12
+  pickupScale: {x: 1.06, y: 0.94}
+  dropValidImpactScale: {x: 0.92, y: 1.08}
+  dropInvalidImpactScale: {x: 0.88, y: 1.14}
+  overshootScale: {x: 1.03, y: 0.97}
+  dragSpeedScaleAmount: 0.04
+  dragSpeedForMax: 6
+  rotateTapScale: {x: 1.03, y: 0.97}
+  enableBoneFollow: 1
+  headBoneName: head
+  faceBoneName: face
+  headTiltDegrees: 10
+  headFollowStiffness: 18
+  headNoShakeDegrees: 14
+  headNoShakeDuration: 0.28
+  faceBob: 6
+  faceFollowStiffness: 14

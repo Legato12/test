@@ -329,8 +329,21 @@ namespace Phase0
                 ghostView.transform.position = _mapping.CellToWorldCenter(_candidateOriginCell);
 
                 // Apply footprint
-                ghostView.EnsureTiles(_localCells.Length, sceneConfig != null ? sceneConfig.cellSize : 1f);
-                ghostView.ApplyLocalCells(_localCells, _mapping.cellStep.x, _mapping.cellStep.y);
+                float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
+
+                // Filter ghost tiles so we never draw outside the grid.
+                var inGridCells = new List<Vector2Int>(_localCells.Length);
+                for (int i = 0; i < _localCells.Length; i++)
+                {
+                    var worldCell = _candidateOriginCell + _localCells[i];
+                    if (_mapping.IsInsideGrid(worldCell))
+                    {
+                        inGridCells.Add(_localCells[i]);
+                    }
+                }
+
+                ghostView.EnsureTiles(inGridCells.Count, cellSize);
+                ghostView.ApplyLocalCells(inGridCells.ToArray(), _mapping.cellStep.x, _mapping.cellStep.y);
 
                 if (_candidateValid)
                 {

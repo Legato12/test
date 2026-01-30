@@ -3,45 +3,44 @@
 
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace Phase0
 {
     public sealed class Phase0PlacementBrain
     {
         private GridModel _grid;
-        private Vector2Int[] _baseCells = new Vector2Int[0];
-        private Vector2Int _pivot;
+        private Int2[] _baseCells = new Int2[0];
+        private Int2 _pivot;
 
         private int _rotationCW;
-        private Vector2Int[] _localCells;
+        private Int2[] _localCells;
 
         private bool _hasCandidate;
-        private Vector2Int _candidateOriginCell;
+        private Int2 _candidateOriginCell;
         private bool _candidateValid;
 
         private bool _isPlacedOnBoard;
-        private Vector2Int[] _lastPlacedWorldCells;
+        private Int2[] _lastPlacedWorldCells;
 
         public int RotationCW => _rotationCW;
-        public Vector2Int[] LocalCells => _localCells;
+        public Int2[] LocalCells => _localCells;
         public bool HasCandidate => _hasCandidate;
-        public Vector2Int CandidateOriginCell => _candidateOriginCell;
+        public Int2 CandidateOriginCell => _candidateOriginCell;
         public bool CandidateValid => _candidateValid;
         public bool IsPlacedOnBoard => _isPlacedOnBoard;
-        public Vector2Int[] LastPlacedWorldCells => _lastPlacedWorldCells;
+        public Int2[] LastPlacedWorldCells => _lastPlacedWorldCells;
 
         public void Initialize(int gridSize,
-            IEnumerable<Vector2Int> blockedCells,
-            IEnumerable<Vector2Int> occupiedCells,
-            Vector2Int[] baseCells,
-            Vector2Int pivot)
+            IEnumerable<Int2> blockedCells,
+            IEnumerable<Int2> occupiedCells,
+            Int2[] baseCells,
+            Int2 pivot)
         {
             _grid = new GridModel(gridSize);
-            _grid.SetBlocked(blockedCells ?? new List<Vector2Int>());
+            _grid.SetBlocked(blockedCells ?? new List<Int2>());
             if (occupiedCells != null) _grid.AddOccupied(occupiedCells);
 
-            _baseCells = baseCells ?? new Vector2Int[0];
+            _baseCells = baseCells ?? new Int2[0];
             _pivot = pivot;
             _rotationCW = 0;
             RecomputeLocalCells();
@@ -52,9 +51,9 @@ namespace Phase0
             _lastPlacedWorldCells = null;
         }
 
-        public void SetShape(Vector2Int[] baseCells, Vector2Int pivot)
+        public void SetShape(Int2[] baseCells, Int2 pivot)
         {
-            _baseCells = baseCells ?? new Vector2Int[0];
+            _baseCells = baseCells ?? new Int2[0];
             _pivot = pivot;
             RecomputeLocalCells();
         }
@@ -71,7 +70,7 @@ namespace Phase0
             _candidateValid = false;
         }
 
-        public void UpdateCandidate(Vector2Int approxCell, bool inside, bool shouldSwitchCandidate)
+        public void UpdateCandidate(Int2 approxCell, bool inside, bool shouldSwitchCandidate)
         {
             if (!inside)
             {
@@ -105,13 +104,13 @@ namespace Phase0
                 _grid.AddOccupied(_lastPlacedWorldCells);
         }
 
-        public Vector2Int[] GetCandidateWorldCells()
+        public Int2[] GetCandidateWorldCells()
         {
             if (!_hasCandidate) return null;
             return _localCells.Select(c => _candidateOriginCell + c).ToArray();
         }
 
-        public Vector2Int[] PlaceCandidate()
+        public Int2[] PlaceCandidate()
         {
             if (!_hasCandidate || !_candidateValid) return null;
 
@@ -133,7 +132,7 @@ namespace Phase0
         {
             if (_baseCells == null || _baseCells.Length == 0)
             {
-                _localCells = new[] { Vector2Int.zero };
+                _localCells = new[] { Int2.zero };
                 return;
             }
 

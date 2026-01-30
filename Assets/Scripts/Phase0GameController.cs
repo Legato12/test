@@ -49,7 +49,7 @@ namespace Phase0
         private Vector3 _velocity;                  // SmoothDamp velocity
         private Vector3 _dragOffsetWorld;
 
-        private Vector2Int[] _lastPlacedWorldCells; // cached after placement
+        private Int2[] _lastPlacedWorldCells; // cached after placement
 
         private void Awake()
         {
@@ -81,31 +81,31 @@ namespace Phase0
             }
 
             // Build blocked list
-            var blocked = new List<Vector2Int>();
+            var blocked = new List<Int2>();
             foreach (Transform cell in gridRoot)
             {
                 if (!cell.name.Contains("Cell_")) continue;
                 if (!cell.name.Contains("_BLOCKED")) continue;
 
                 if (TryParseCellName(cell.name, out var coord))
-                    blocked.Add(coord);
+                    blocked.Add(new Int2(coord.x, coord.y));
             }
 
             // Occupied: dummy piece occupies exactly 1 cell (as per requirement).
-            var occupied = new List<Vector2Int>();
+            var occupied = new List<Int2>();
             if (dummyPiece != null)
             {
                 var dummyCell = _mapping.WorldToCellRound(dummyPiece.position);
                 if (_mapping.IsInsideGrid(dummyCell))
-                    occupied.Add(dummyCell);
+                    occupied.Add(new Int2(dummyCell.x, dummyCell.y));
             }
 
             _brain.Initialize(
                 gridSize,
                 blocked,
                 occupied,
-                shapeDefinition != null ? shapeDefinition.baseCells : null,
-                shapeDefinition != null ? shapeDefinition.pivot : Vector2Int.zero
+                shapeDefinition != null ? ToInt2Array(shapeDefinition.baseCells) : null,
+                shapeDefinition != null ? new Int2(shapeDefinition.pivot.x, shapeDefinition.pivot.y) : Int2.zero
             );
 
             // Init views
@@ -113,7 +113,7 @@ namespace Phase0
             if (pieceTiles != null)
             {
                 pieceTiles.AutoCollectTiles();
-                pieceTiles.ApplyLocalCells(_brain.LocalCells, _mapping.cellStep.x, _mapping.cellStep.y);
+                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _mapping.cellStep.x, _mapping.cellStep.y);
             }
 
             if (ghostView != null)
@@ -258,7 +258,7 @@ namespace Phase0
             if (_brain.HasCandidate && _brain.CandidateValid)
             {
                 // Snap to candidate origin cell
-                Vector3 snapPos = _mapping.CellToWorldCenter(_brain.CandidateOriginCell);
+                Vector3 snapPos = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
                 // Animate with simple overshoot (without external libs)
                 StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, snapPos, sceneConfig != null ? sceneConfig.snapDuration : 0.12f));
@@ -323,11 +323,11 @@ namespace Phase0
             bool shouldSwitch = false;
             if (_brain.HasCandidate)
             {
-                float d = _mapping.DistanceToCellCenter(pointerWorld, _brain.CandidateOriginCell);
+                float d = _mapping.DistanceToCellCenter(pointerWorld, new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
                 shouldSwitch = d >= cellSwitchHysteresisWorld;
             }
 
-            _brain.UpdateCandidate(approxCell, inside, shouldSwitch);
+            _brain.UpdateCandidate(new Int2(approxCell.x, approxCell.y), inside, shouldSwitch);
 
             // Ghost view
             if (ghostView != null)
@@ -338,7 +338,7 @@ namespace Phase0
                     return;
                 }
                 ghostView.SetVisible(true);
-                ghostView.transform.position = _mapping.CellToWorldCenter(_brain.CandidateOriginCell);
+                ghostView.transform.position = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
                 // Apply footprint
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
@@ -348,10 +348,11 @@ namespace Phase0
                 var inGridCells = new List<Vector2Int>(localCells.Length);
                 for (int i = 0; i < localCells.Length; i++)
                 {
-                    var worldCell = _brain.CandidateOriginCell + localCells[i];
+                    var worldCell = new Vector2Int(_brain.CandidateOriginCell.x + localCells[i].x,
+                        _brain.CandidateOriginCell.y + localCells[i].y);
                     if (_mapping.IsInsideGrid(worldCell))
                     {
-                        inGridCells.Add(localCells[i]);
+                        inGridCells.Add(new Vector2Int(localCells[i].x, localCells[i].y));
                     }
                 }
 
@@ -377,7 +378,7 @@ namespace Phase0
             var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
             if (pieceTiles != null)
             {
-                pieceTiles.ApplyLocalCells(_brain.LocalCells, _mapping.cellStep.x, _mapping.cellStep.y);
+                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _mapping.cellStep.x, _mapping.cellStep.y);
             }
 
             // Visual rotation: rotate the SpineAnchor and apply per-rotation offset to the Spine child.
@@ -628,6 +629,28 @@ namespace Phase0
                     worldPos = new Vector2(mwp.x, mwp.y),
                 };
             }
+        }
+
+        private static Int2[] ToInt2Array(Vector2Int[] source)
+        {
+            if (source == null) return null;
+            var result = new Int2[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                result[i] = new Int2(source[i].x, source[i].y);
+            }
+            return result;
+        }
+
+        private static Vector2Int[] ToVector2IntArray(Int2[] source)
+        {
+            if (source == null) return null;
+            var result = new Vector2Int[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                result[i] = new Vector2Int(source[i].x, source[i].y);
+            }
+            return result;
         }
     }
 }

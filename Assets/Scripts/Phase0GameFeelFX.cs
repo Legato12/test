@@ -2,10 +2,8 @@ using System;
 using PrimeTween;
 using UnityEngine;
 
-#if SPINE_UNITY
 using Spine;
 using Spine.Unity;
-#endif
 
 namespace Phase0
 {
@@ -33,7 +31,6 @@ namespace Phase0
         private float _noShakeDur;
         private float _noShakeAmpDeg;
 
-#if SPINE_UNITY
         private SkeletonAnimation _sa;
         private Bone _headBone;
         private Bone _faceBone;
@@ -42,7 +39,16 @@ namespace Phase0
         private float _faceY;
         private float _savedSpineTimeScale = 1f;
         private bool _spinePaused;
-#endif
+        private SpineState _spineState = SpineState.Idle;
+        private float _idleT;
+        private bool _loggedMissingHead;
+        private bool _loggedMissingFace;
+
+        private enum SpineState
+        {
+            Idle,
+            Dragging
+        }
 
         private void Awake()
         {
@@ -50,11 +56,10 @@ namespace Phase0
             _baseScale = visualRoot.localScale;
             _lastPos = visualRoot.position;
 
-#if SPINE_UNITY
             _sa = ResolveSkeletonAnimation();
             BindSkeletonEvents();
-            TryBindBones();
-#endif
+            TryBindBones(logSuccess: false);
+            ApplySpineState(SpineState.Idle, force: true);
         }
 
         private void OnEnable()
@@ -63,42 +68,21 @@ namespace Phase0
             _baseScale = visualRoot.localScale;
             _lastPos = visualRoot.position;
 
-#if SPINE_UNITY
             _sa = ResolveSkeletonAnimation();
             BindSkeletonEvents();
-#endif
+            TryBindBones(logSuccess: false);
+            ApplySpineState(SpineState.Idle, force: true);
         }
 
         private void OnDisable()
         {
-#if SPINE_UNITY
             UnbindSkeletonEvents();
-#endif
         }
 
         public void SetDragging(bool dragging)
         {
             _dragging = dragging;
-#if SPINE_UNITY
-            if (settings != null && settings.pauseSpineWhileDragging)
-            {
-                _sa = ResolveSkeletonAnimation();
-                if (_sa != null && _sa.AnimationState != null)
-                {
-                    if (dragging && !_spinePaused)
-                    {
-                        _savedSpineTimeScale = _sa.timeScale;
-                        _sa.timeScale = 0f;
-                        _spinePaused = true;
-                    }
-                    else if (!dragging && _spinePaused)
-                    {
-                        _sa.timeScale = _savedSpineTimeScale;
-                        _spinePaused = false;
-                    }
-                }
-            }
-#endif
+            ApplySpineState(dragging ? SpineState.Dragging : SpineState.Idle);
         }
 
         // Call every frame from controller with piece root position (the thing you move)
@@ -173,7 +157,14 @@ namespace Phase0
         {
             TickDragScale();
             TickNoShake();
+            TickIdle();
             TickBoneFollow();
+        }
+
+        private void TickIdle()
+        {
+            if (_spineState != SpineState.Idle) return;
+            _idleT += Time.deltaTime;
         }
 
         private void TickDragScale()
@@ -231,7 +222,6 @@ namespace Phase0
 
         private void TickBoneFollow()
         {
-#if SPINE_UNITY
             if (!Validate() || !settings.enableBoneFollow) return;
             if (_sa == null) _sa = ResolveSkeletonAnimation();
             if (_sa == null || _sa.Skeleton == null)
@@ -239,7 +229,7 @@ namespace Phase0
                 return;
             }
 
-            if (_headBone == null && _faceBone == null) TryBindBones();
+            if (_headBone == null && _faceBone == null) TryBindBones(logSuccess: false);
 
             // compute targets; actual bone write happens in Spine UpdateLocal hook
             float dt = Mathf.Max(Time.deltaTime, 1e-5f);
@@ -251,6 +241,12 @@ namespace Phase0
 
             float desiredHead = Mathf.Clamp((-kx) * settings.headTiltDegrees,
                 -settings.headTiltDegrees, settings.headTiltDegrees);
+
+            if (_spineState == SpineState.Idle && settings.enableIdleBreathing)
+            {
+                float idle = Mathf.Sin(_idleT * settings.idleBreathSpeed * Mathf.PI * 2f);
+                desiredHead += idle * settings.idleHeadBreathDegrees;
+            }
 
             float noShake = 0f;
             if (_noShakeT < _noShakeDur)
@@ -267,30 +263,35 @@ namespace Phase0
             float desiredFaceY = Mathf.Clamp(ky * settings.faceBob,
                 settings.faceOffsetYMinMax.x, settings.faceOffsetYMinMax.y);
 
+            if (_spineState == SpineState.Idle && settings.enableIdleBreathing)
+            {
+                float idle = Mathf.Sin(_idleT * settings.idleBreathSpeed * Mathf.PI * 2f);
+                desiredFaceX += idle * settings.idleFaceBreath;
+                desiredFaceY += idle * settings.idleFaceBreath;
+            }
+
             float b = 1f - Mathf.Exp(-settings.faceFollowStiffness * dt);
             _faceX = Mathf.Lerp(_faceX, desiredFaceX, b);
             _faceY = Mathf.Lerp(_faceY, desiredFaceY, b);
-#endif
         }
 
-#if SPINE_UNITY
         private void BindSkeletonEvents()
         {
             if (_sa == null) return;
-            _sa.UpdateWorld -= OnSpineUpdateWorld;
-            _sa.UpdateWorld += OnSpineUpdateWorld;
+            _sa.UpdateLocal -= OnSpineUpdateLocal;
+            _sa.UpdateLocal += OnSpineUpdateLocal;
         }
 
         private void UnbindSkeletonEvents()
         {
             if (_sa == null) return;
-            _sa.UpdateWorld -= OnSpineUpdateWorld;
+            _sa.UpdateLocal -= OnSpineUpdateLocal;
         }
 
-        private void OnSpineUpdateWorld(ISkeletonAnimation anim)
+        private void OnSpineUpdateLocal(ISkeletonAnimation anim)
         {
             if (!Validate() || !settings.enableBoneFollow) return;
-            if (_headBone == null && _faceBone == null) TryBindBones();
+            if (_headBone == null && _faceBone == null) TryBindBones(logSuccess: false);
             if (_headBone != null) _headBone.Rotation = _headRotDeg;
             if (_faceBone != null)
             {
@@ -299,7 +300,7 @@ namespace Phase0
             }
         }
 
-        private void TryBindBones()
+        private void TryBindBones(bool logSuccess)
         {
             if (_sa == null || _sa.Skeleton == null || settings == null) return;
 
@@ -308,6 +309,34 @@ namespace Phase0
 
             if (!string.IsNullOrEmpty(settings.faceBoneName))
                 _faceBone = _sa.Skeleton.FindBone(settings.faceBoneName);
+
+            if (settings.logMissingBones)
+            {
+                if (_headBone == null && !_loggedMissingHead && !string.IsNullOrEmpty(settings.headBoneName))
+                {
+                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.headBoneName}' on '{name}'.");
+                    _loggedMissingHead = true;
+                }
+
+                if (_faceBone == null && !_loggedMissingFace && !string.IsNullOrEmpty(settings.faceBoneName))
+                {
+                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.faceBoneName}' on '{name}'.");
+                    _loggedMissingFace = true;
+                }
+            }
+
+            if (logSuccess && settings.logBoneBindSuccess)
+            {
+                if (_headBone != null)
+                {
+                    Debug.Log($"Phase0GameFeelFX: Bound head bone '{_headBone.Data.Name}' on '{name}'.");
+                }
+
+                if (_faceBone != null)
+                {
+                    Debug.Log($"Phase0GameFeelFX: Bound face bone '{_faceBone.Data.Name}' on '{name}'.");
+                }
+            }
         }
 
         private SkeletonAnimation ResolveSkeletonAnimation()
@@ -331,7 +360,58 @@ namespace Phase0
 
             return null;
         }
-#endif
+
+        private void ApplySpineState(SpineState state, bool force = false)
+        {
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+            if (!force && _spineState == state) return;
+
+            _spineState = state;
+            _idleT = 0f;
+
+            if (_sa.AnimationState != null)
+            {
+                if (state == SpineState.Dragging)
+                {
+                    if (settings != null && settings.pauseSpineWhileDragging)
+                    {
+                        if (!_spinePaused)
+                        {
+                            _savedSpineTimeScale = _sa.timeScale;
+                            _sa.timeScale = 0f;
+                            _spinePaused = true;
+                        }
+                    }
+                    else
+                    {
+                        _sa.AnimationState.ClearTracks();
+                    }
+                }
+                else
+                {
+                    if (_spinePaused)
+                    {
+                        _sa.timeScale = _savedSpineTimeScale;
+                        _spinePaused = false;
+                    }
+
+                    if (settings != null && settings.playIdleAnimation && !string.IsNullOrEmpty(settings.idleAnimationName))
+                    {
+                        if (_sa.AnimationState.Data.SkeletonData.FindAnimation(settings.idleAnimationName) != null)
+                        {
+                            _sa.AnimationState.SetAnimation(0, settings.idleAnimationName, true);
+                        }
+                        else if (settings.logMissingBones)
+                        {
+                            Debug.LogWarning($"Phase0GameFeelFX: Idle animation '{settings.idleAnimationName}' not found on '{name}'.");
+                        }
+                    }
+                }
+            }
+
+            TryBindBones(logSuccess: true);
+        }
 
         private void TweenScale(Vector3 to, float duration, Ease ease)
         {

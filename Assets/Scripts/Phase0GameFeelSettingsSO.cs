@@ -40,5 +40,19 @@ namespace Phase0
         public Vector2 faceOffsetYMinMax = new Vector2(-40f, 40f);
         [Header("Spine Animation")]
         public bool pauseSpineWhileDragging = true;
+        [Tooltip("If true, plays idleAnimationName on state Idle. Leave name empty to keep current.")]
+        public bool playIdleAnimation = true;
+        public string idleAnimationName = "idle";
+
+        [Header("Spine Idle (procedural)")]
+        [Tooltip("Adds a subtle procedural idle even if no animation is playing.")]
+        public bool enableIdleBreathing = true;
+        [Range(0f, 20f)] public float idleHeadBreathDegrees = 3f;
+        [Range(0f, 20f)] public float idleFaceBreath = 2f;
+        [Min(0.01f)] public float idleBreathSpeed = 1.5f;
+
+        [Header("Spine Debug")]
+        public bool logMissingBones = true;
+        public bool logBoneBindSuccess = false;
     }
 }

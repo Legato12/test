@@ -50,6 +50,7 @@ namespace Phase0
         private Vector3 _velocity;                  // SmoothDamp velocity
         private Vector3 _dragOffsetWorld;
         private Sequence _positionTween;
+        private Tween _rotationTween;
 
         private Int2[] _lastPlacedWorldCells; // cached after placement
 
@@ -169,6 +170,7 @@ namespace Phase0
             _downScreenPos = pointer.screenPos;
 
             _positionTween.Stop();
+            _rotationTween.Stop();
 
 
             _pieceOriginBeforeDrag = activePieceRoot.position;
@@ -209,7 +211,7 @@ namespace Phase0
             if (_movedBeyondThreshold)
             {
                 Vector3 target = new Vector3(pointer.worldPos.x, pointer.worldPos.y, 0f) + _dragOffsetWorld;
-                target = ClampToCameraBounds(target, mainCamera, activePieceRoot, fallbackPaddingWorld: 0.3f);
+                target = ClampToCameraBounds(target, mainCamera, activePieceRoot, fallbackPaddingWorld: 0.3f, fallbackExtents: GetFallbackPieceExtents());
 
                 activePieceRoot.position = Vector3.SmoothDamp(
                     activePieceRoot.position,
@@ -258,8 +260,9 @@ namespace Phase0
                 return;
             }
 
-            // Drag drop: valid only if candidate is inside grid and CanPlace == true.
-            if (_brain.HasCandidate && _brain.CandidateValid)
+            // Drag drop: valid only if released inside board + candidate is valid.
+            bool releaseInsideBoard = _mapping.IsInsideGridRect(pointer.worldPos);
+            if (releaseInsideBoard && _brain.HasCandidate && _brain.CandidateValid)
             {
                 // Snap to candidate origin cell
                 Vector3 snapPos = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
@@ -352,7 +355,8 @@ namespace Phase0
         {
             // Outside grid is not valid; off-screen is clamped earlier.
             var approxCell = _mapping.WorldToCellRound(pointerWorld);
-            bool inside = _mapping.IsInsideGridRect(pointerWorld);
+            float rectHysteresis = cellSwitchHysteresisWorld;
+            bool inside = _mapping.IsInsideGridRectHysteresis(pointerWorld, _brain.HasCandidate, rectHysteresis);
 
             bool shouldSwitch = false;
             if (_brain.HasCandidate)
@@ -410,7 +414,14 @@ namespace Phase0
                 if (spineAnchor != null)
                 {
                     float angle = -90f * _brain.RotationCW;
-                    spineAnchor.localRotation = Quaternion.Euler(0f, 0f, angle);
+                    _rotationTween.Stop();
+                    float duration = sceneConfig != null ? sceneConfig.rotateDuration : 0.12f;
+                    float strength = sceneConfig != null ? sceneConfig.rotateOvershootStrength : 1.15f;
+                    duration = Mathf.Max(0.01f, duration);
+                    strength = Mathf.Clamp(strength, 0.1f, 2f);
+
+                    var target = Quaternion.Euler(0f, 0f, angle);
+                    _rotationTween = Tween.LocalRotation(spineAnchor, target, duration, Easing.Overshoot(strength));
 
                     if (spineAnchor.childCount > 0 && spineOffsets != null && spineOffsets.Length >= 4)
                     {
@@ -490,7 +501,7 @@ namespace Phase0
             return false;
         }
 
-        private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, float fallbackPaddingWorld)
+        private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, float fallbackPaddingWorld, Vector2 fallbackExtents)
         {
             // Orthographic bounds
             float halfH = cam.orthographicSize;
@@ -516,10 +527,10 @@ namespace Phase0
             }
             else
             {
-                float minPadX = minX + fallbackPaddingWorld;
-                float maxPadX = maxX - fallbackPaddingWorld;
-                float minPadY = minY + fallbackPaddingWorld;
-                float maxPadY = maxY - fallbackPaddingWorld;
+                float minPadX = minX + Mathf.Max(fallbackPaddingWorld, fallbackExtents.x);
+                float maxPadX = maxX - Mathf.Max(fallbackPaddingWorld, fallbackExtents.x);
+                float minPadY = minY + Mathf.Max(fallbackPaddingWorld, fallbackExtents.y);
+                float maxPadY = maxY - Mathf.Max(fallbackPaddingWorld, fallbackExtents.y);
 
                 world.x = Mathf.Clamp(world.x, minPadX, maxPadX);
                 world.y = Mathf.Clamp(world.y, minPadY, maxPadY);
@@ -545,6 +556,28 @@ namespace Phase0
             }
 
             return true;
+        }
+
+        private Vector2 GetFallbackPieceExtents()
+        {
+            if (sceneConfig == null) return new Vector2(0.3f, 0.3f);
+            float stepX = Mathf.Abs(_mapping.cellStep.x) > 0.0001f ? Mathf.Abs(_mapping.cellStep.x) : sceneConfig.cellSize;
+            float stepY = Mathf.Abs(_mapping.cellStep.y) > 0.0001f ? Mathf.Abs(_mapping.cellStep.y) : sceneConfig.cellSize;
+            var localCells = _brain.LocalCells;
+            if (localCells == null || localCells.Length == 0)
+            {
+                float half = sceneConfig.cellSize * 0.5f;
+                return new Vector2(half, half);
+            }
+
+            int minX = localCells.Min(c => c.x);
+            int maxX = localCells.Max(c => c.x);
+            int minY = localCells.Min(c => c.y);
+            int maxY = localCells.Max(c => c.y);
+
+            float width = (maxX - minX + 1) * stepX;
+            float height = (maxY - minY + 1) * stepY;
+            return new Vector2(width * 0.5f, height * 0.5f);
         }
 
         private struct PointerState

@@ -56,5 +56,9 @@ namespace Phase0
         [Min(0f)] public float bounceBackOvershootMax = 0.12f;
         [Range(0.1f, 0.9f)] public float bounceBackOvershootPhase = 0.55f;
         [Range(0.1f, 2f)] public float bounceBackBounceStrength = 0.9f;
+
+        [Header("Rotation Feel")]
+        [Min(0.01f)] public float rotateDuration = 0.12f;
+        [Range(0.1f, 2f)] public float rotateOvershootStrength = 1.15f;
     }
 }

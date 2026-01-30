@@ -70,6 +70,35 @@ namespace Phase0
                 && world.y >= gridWorldRect.yMin && world.y <= gridWorldRect.yMax;
         }
 
+        public bool IsInsideGridRectHysteresis(Vector2 world, bool wasInside, float hysteresisWorld)
+        {
+            if (hysteresisWorld <= 0f) return IsInsideGridRect(world);
+
+            Rect rect = gridWorldRect;
+            if (wasInside)
+            {
+                rect = new Rect(
+                    rect.xMin - hysteresisWorld,
+                    rect.yMin - hysteresisWorld,
+                    rect.width + hysteresisWorld * 2f,
+                    rect.height + hysteresisWorld * 2f);
+            }
+            else
+            {
+                rect = new Rect(
+                    rect.xMin + hysteresisWorld,
+                    rect.yMin + hysteresisWorld,
+                    rect.width - hysteresisWorld * 2f,
+                    rect.height - hysteresisWorld * 2f);
+
+                if (rect.width <= 0f || rect.height <= 0f)
+                    return IsInsideGridRect(world);
+            }
+
+            return world.x >= rect.xMin && world.x <= rect.xMax
+                && world.y >= rect.yMin && world.y <= rect.yMax;
+        }
+
         public float DistanceToCellCenter(Vector2 world, Vector2Int cell)
         {
             return Vector2.Distance(world, CellToWorldCenter(cell));

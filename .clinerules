@@ -1,31 +1,39 @@
 ROLE: Senior Unity C# Architect + Spine 2D Tech Artist.
 
-PROJECT: Polyomino puzzle prototype. Premium drag/snap feel. Board is 4x4. Play area is the whole screen but valid placement/ghosting only on the board.
+PROJECT: Polyomino puzzle prototype.
+- Whole screen is a snap grid (global grid).
+- Central highlighted 4x4 is the "Board Area" only (ghost + obstacles live there).
+- Piece can be placed anywhere on the screen grid (including partially outside the central board).
 
-NON-NEGOTIABLE:
-1) Valid placement area: ONLY the 4x4 board. Ghost only on board.
-2) Drop behavior:
-   - If released outside board OR on blocked/occupied => INVALID + bounce back to pre-drag position.
-   - No outside-board parking.
-3) Input:
-   - TouchDown: immediate pickup.
-   - Drag if move > 10 px; Tap (move < 10 px then release): rotate 90 degrees.
-   - Must include debounce/hysteresis to avoid flicker near borders.
-4) Rotation pivot:
-   - Rotate shapes around anchor block (0,0). Do NOT normalize minX/minY after rotation.
+NON-NEGOTIABLE REQUIREMENTS
+1) Global grid:
+   - Candidate origin cell is always computed from pointer world position (WorldToCellRound).
+   - Coordinates may be outside [0..3] and that is valid.
+2) Central board behavior:
+   - Ghost is visible ONLY if at least one shape cell intersects the central 4x4.
+   - Ghost draws ONLY the intersecting cells inside [0..3]x[0..3].
+   - Validity for those intersecting cells must reject blocked/occupied (treat blocked == occupied).
+3) Drop behavior:
+   - If placement is valid => snap to candidate cell (even outside board).
+   - If invalid => bounce back to pre-drag position.
+   - Remove any "push outside grid" parking logic.
+4) Rotation:
+   - Anchor-based rotation around pivot block (0,0 by default).
+   - DO NOT normalize minX/minY after rotation.
    - Negative local cell coordinates are allowed.
-5) Tweens:
-   - Use PrimeTween for position/rotation tweens. Tweens must be cancellable.
+   - Anchor block world position must remain unchanged after rotation.
+5) Tweening:
+   - Use PrimeTween for snap/bounce/rotate feel. Tweens must be cancellable.
 6) Spine:
-   - Use SkeletonAnimation (world-space).
-   - While dragging, do NOT freeze the whole SkeletonAnimation timeScale if it breaks physics.
-     Stop idle animation overriding bones (ClearTracks / EmptyAnimation / AnimationState.TimeScale), keep skeleton update running.
-   - Apply procedural bone overrides in SkeletonAnimation UpdateWorld/UpdateLocal callback.
-7) Preserve Inspector links:
-   - Do not rename or move MonoBehaviour classes.
-   - Warn if a change may break serialized references.
+   - Using SkeletonAnimation (world-space).
+   - Do NOT freeze SkeletonAnimation.timeScale to stop idle; stop only animation tracks (use SetEmptyAnimation/ClearTrack) so physics/constraints can continue.
+   - Apply procedural bone overrides in SkeletonAnimation UpdateWorld callback.
+   - Idle animation name is "animation".
+7) Safety:
+   - Do not rename MonoBehaviour classes or break serialized Inspector links.
+   - Output patch-like edits per file and a manual test checklist after each stage.
 
-WORKFLOW:
-A) First analyze dependencies and list violations vs requirements.
-B) Implement stage-by-stage with minimal diffs. Each stage must compile.
-C) Output patch-like edits per file + a manual test checklist.
+WORKFLOW
+A) Analyze first (no code).
+B) Implement stage-by-stage minimal diffs, each stage compiles.
+C) After each stage: list changed files + tests.

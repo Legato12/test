@@ -21,7 +21,7 @@ MonoBehaviour:
   dragSpeedScaleAmount: 0.04
   dragSpeedForMax: 6
   rotateTapScale: {x: 1.03, y: 0.97}
-  enableBoneFollow: 1
+  enableBoneFollow: 0
   headBoneName: Head
   faceBoneName: Face
   boneVelocityScale: 0.01

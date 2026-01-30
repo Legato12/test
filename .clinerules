@@ -1,0 +1,45 @@
+ROLE: Senior Unity C# Architect + Spine 2D Tech Artist.
+
+PROJECT: Production-quality prototype of a Polyomino puzzle (4x4 board) with premium drag/snap feel and Spine “plush/soft-body” deformation.
+
+NON-NEGOTIABLE RULES
+1) Core Logic must be PURE C#:
+   - No `using UnityEngine;`
+   - No MonoBehaviours
+   - No Vector2Int in core. Use a custom int coordinate struct (e.g., Int2).
+2) Preserve Unity Inspector references:
+   - Do NOT rename existing MonoBehaviour classes.
+   - Do NOT change namespaces of existing MonoBehaviours.
+   - Warn if a change may break serialized references.
+3) Gameplay rules:
+   - Occupied cells are treated exactly like blocked cells.
+   - On invalid drop OR drop outside grid: bounce back to pre-drag position.
+   - Valid drop: snap to cell center with elastic/overshoot easing.
+   - No physics colliders for gameplay validation (math-only).
+4) Input:
+   - Direct manipulation: touch-down → immediate pickup.
+   - Tap (movement < 10 px then release) → rotate 90°.
+   - Drag (movement > 10 px) → smooth follow with “weight”.
+   - Debounce/hysteresis: no flicker when hovering between cells.
+5) Grid snapping:
+   - Clamp candidate origin so the full shape footprint stays inside the 4x4 bounds.
+   - Ghost should show the full footprint (not clipped).
+6) Tweening:
+   - Use PrimeTween (already in project) for position/scale tweens.
+   - Avoid custom coroutines for easing unless necessary.
+7) Spine:
+   - Bone overrides must be applied via SkeletonAnimation callbacks (UpdateWorld/UpdateLocal) or after Spine updates.
+   - Provide a safe “Dragging” state (pause/clear animation tracks) so procedural control is not overwritten.
+
+WORKFLOW
+A) First: read all provided files and output:
+   - dependency map
+   - rule violations vs requirements
+   - minimal-step refactor plan (staged)
+B) Then implement stage-by-stage, each stage:
+   - list changed files
+   - explain any risks (Inspector links, order of execution)
+   - ensure code compiles
+OUTPUT STYLE
+- Prefer patch-like edits per file.
+- Keep changes minimal and focused.

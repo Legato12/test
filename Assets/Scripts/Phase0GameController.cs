@@ -205,7 +205,7 @@ namespace Phase0
             if (_movedBeyondThreshold)
             {
                 Vector3 target = new Vector3(pointer.worldPos.x, pointer.worldPos.y, 0f) + _dragOffsetWorld;
-                target = ClampToCameraBounds(target, mainCamera, paddingWorld: 0.3f);
+                target = ClampToCameraBounds(target, mainCamera, activePieceRoot, fallbackPaddingWorld: 0.3f);
 
                 activePieceRoot.position = Vector3.SmoothDamp(
                     activePieceRoot.position,
@@ -432,22 +432,61 @@ namespace Phase0
             return false;
         }
 
-        private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, float paddingWorld)
+        private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, float fallbackPaddingWorld)
         {
             // Orthographic bounds
             float halfH = cam.orthographicSize;
             float halfW = halfH * cam.aspect;
 
-            float minX = cam.transform.position.x - halfW + paddingWorld;
-            float maxX = cam.transform.position.x + halfW - paddingWorld;
-            float minY = cam.transform.position.y - halfH + paddingWorld;
-            float maxY = cam.transform.position.y + halfH - paddingWorld;
+            float minX = cam.transform.position.x - halfW;
+            float maxX = cam.transform.position.x + halfW;
+            float minY = cam.transform.position.y - halfH;
+            float maxY = cam.transform.position.y + halfH;
 
-            world.x = Mathf.Clamp(world.x, minX, maxX);
-            world.y = Mathf.Clamp(world.y, minY, maxY);
+            if (TryGetRendererBounds(root, out var bounds))
+            {
+                Vector3 offset = bounds.center - root.position;
+                Vector3 extents = bounds.extents;
+
+                float minRootX = minX + extents.x - offset.x;
+                float maxRootX = maxX - extents.x - offset.x;
+                float minRootY = minY + extents.y - offset.y;
+                float maxRootY = maxY - extents.y - offset.y;
+
+                world.x = Mathf.Clamp(world.x, minRootX, maxRootX);
+                world.y = Mathf.Clamp(world.y, minRootY, maxRootY);
+            }
+            else
+            {
+                float minPadX = minX + fallbackPaddingWorld;
+                float maxPadX = maxX - fallbackPaddingWorld;
+                float minPadY = minY + fallbackPaddingWorld;
+                float maxPadY = maxY - fallbackPaddingWorld;
+
+                world.x = Mathf.Clamp(world.x, minPadX, maxPadX);
+                world.y = Mathf.Clamp(world.y, minPadY, maxPadY);
+            }
+
             world.z = 0f;
 
             return world;
+        }
+
+        private static bool TryGetRendererBounds(Transform root, out Bounds bounds)
+        {
+            bounds = default;
+            if (root == null) return false;
+
+            var renderers = root.GetComponentsInChildren<Renderer>(includeInactive: true);
+            if (renderers == null || renderers.Length == 0) return false;
+
+            bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            return true;
         }
 
 // Lightweight overshoot tween (position only)

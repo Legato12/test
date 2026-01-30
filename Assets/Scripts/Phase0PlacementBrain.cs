@@ -142,7 +142,7 @@ namespace Phase0
                 return;
             }
 
-            _localCells = ShapeRotation.GetRotatedNormalized(_baseCells, _pivot, _rotationCW);
+            _localCells = ShapeRotation.GetRotated(_baseCells, _pivot, _rotationCW);
             int minX = _localCells.Min(c => c.x);
             int minY = _localCells.Min(c => c.y);
             int maxX = _localCells.Max(c => c.x);

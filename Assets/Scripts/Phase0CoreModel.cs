@@ -38,8 +38,8 @@ namespace Phase0
 
     public static class ShapeRotation
     {
-        // Rotate base cells clockwise by 90*k around pivot, then normalize (min x/y -> 0).
-        public static Int2[] GetRotatedNormalized(Int2[] baseCells, Int2 pivot, int rotationIndexCW)
+        // Rotate base cells clockwise by 90*k around pivot. Do NOT normalize; allow negative coords.
+        public static Int2[] GetRotated(Int2[] baseCells, Int2 pivot, int rotationIndexCW)
         {
             rotationIndexCW = Mod4(rotationIndexCW);
 
@@ -47,15 +47,6 @@ namespace Phase0
             for (int i = 0; i < baseCells.Length; i++)
             {
                 rotated[i] = RotateCellCW(baseCells[i], pivot, rotationIndexCW);
-            }
-
-            // Normalize so that min x,y are 0 (keeps origin anchor consistent).
-            int minX = rotated.Min(v => v.x);
-            int minY = rotated.Min(v => v.y);
-
-            for (int i = 0; i < rotated.Length; i++)
-            {
-                rotated[i] = new Int2(rotated[i].x - minX, rotated[i].y - minY);
             }
 
             return rotated;

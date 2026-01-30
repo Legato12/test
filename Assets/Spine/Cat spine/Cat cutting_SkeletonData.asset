@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Cat cutting_SkeletonData
   m_EditorClassIdentifier: 
   atlasAssets:
-  - {fileID: 11400000, guid: 7786448a4d5e495498037ea7aa80901c, type: 2}
+  - {fileID: 11400000, guid: 3871498504d39114fa3a154c4187bb3d, type: 2}
   scale: 0.01
-  skeletonJSON: {fileID: 4900000, guid: c53d11e33f25de7479c70d5d055e5a5c, type: 3}
+  skeletonJSON: {fileID: 4900000, guid: 014b996bc72656444a039cf2202eec41, type: 3}
   isUpgradingBlendModeMaterials: 0
   blendModeMaterials:
     requiresBlendModeMaterials: 0

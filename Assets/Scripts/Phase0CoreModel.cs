@@ -106,12 +106,6 @@ namespace Phase0
             {
                 var world = originCell + localCells[i];
 
-                if (!IsInside(world))
-                {
-                    firstInvalid = world;
-                    return false;
-                }
-
                 if (IsBlockedOrOccupied(world))
                 {
                     firstInvalid = world;

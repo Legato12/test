@@ -260,9 +260,8 @@ namespace Phase0
                 return;
             }
 
-            // Drag drop: valid only if released inside board + candidate is valid.
-            bool releaseInsideBoard = _mapping.IsInsideGridRect(pointer.worldPos);
-            if (releaseInsideBoard && _brain.HasCandidate && _brain.CandidateValid)
+            // Drag drop: valid if candidate is valid (even outside board).
+            if (_brain.HasCandidate && _brain.CandidateValid)
             {
                 // Snap to candidate origin cell
                 Vector3 snapPos = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
@@ -353,10 +352,7 @@ namespace Phase0
 
         private void UpdateCandidateAndGhost(Vector2 pointerWorld)
         {
-            // Outside grid is not valid; off-screen is clamped earlier.
             var approxCell = _mapping.WorldToCellRound(pointerWorld);
-            float rectHysteresis = cellSwitchHysteresisWorld;
-            bool inside = _mapping.IsInsideGridRectHysteresis(pointerWorld, _brain.HasCandidate, rectHysteresis);
 
             bool shouldSwitch = false;
             if (_brain.HasCandidate)
@@ -365,7 +361,7 @@ namespace Phase0
                 shouldSwitch = d >= cellSwitchHysteresisWorld;
             }
 
-            _brain.UpdateCandidate(new Int2(approxCell.x, approxCell.y), inside, shouldSwitch);
+            _brain.UpdateCandidate(new Int2(approxCell.x, approxCell.y), shouldSwitch);
 
             // Ghost view
             if (ghostView != null)
@@ -375,15 +371,28 @@ namespace Phase0
                     ghostView.SetVisible(false);
                     return;
                 }
+                var localCells = _brain.LocalCells;
+                var intersecting = new List<Vector2Int>(localCells.Length);
+                for (int i = 0; i < localCells.Length; i++)
+                {
+                    var world = _brain.CandidateOriginCell + localCells[i];
+                    if (_mapping.IsInsideGrid(new Vector2Int(world.x, world.y)))
+                        intersecting.Add(new Vector2Int(localCells[i].x, localCells[i].y));
+                }
+
+                if (intersecting.Count == 0)
+                {
+                    ghostView.SetVisible(false);
+                    return;
+                }
+
                 ghostView.SetVisible(true);
                 ghostView.transform.position = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
-                // Apply footprint
+                // Apply footprint (only intersecting local offsets)
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
-
-                var localCells = _brain.LocalCells;
-                ghostView.EnsureTiles(localCells.Length, cellSize);
-                ghostView.ApplyLocalCells(ToVector2IntArray(localCells), _mapping.cellStep.x, _mapping.cellStep.y);
+                ghostView.EnsureTiles(intersecting.Count, cellSize);
+                ghostView.ApplyLocalCells(intersecting.ToArray(), _mapping.cellStep.x, _mapping.cellStep.y);
 
                 if (_brain.CandidateValid)
                 {

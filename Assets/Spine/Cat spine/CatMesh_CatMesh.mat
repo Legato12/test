@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: CatMesh_Material
+  m_Name: CatMesh_CatMesh
   m_Shader: {fileID: 4800000, guid: 64005298b9a80bb4899eabd5140dc4a8, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -34,7 +34,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: a6d206d64c52fe948b276a20c819d643, type: 3}
+        m_Texture: {fileID: 2800000, guid: 911ea63c89d03af4ca9d9211b4b631a4, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
@@ -45,6 +45,7 @@ Material:
     - _Cull: 0
     - _CustomRenderQueue: 0
     - _Cutoff: 0.1
+    - _DarkColorAlphaAdditive: 0
     - _DoubleSidedLighting: 0
     - _DstBlend: 10
     - _Fill: 0

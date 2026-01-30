@@ -34,15 +34,21 @@ namespace Phase0
         private SkeletonAnimation _sa;
         private Bone _headBone;
         private Bone _faceBone;
+        private Bone _earLBone;
+        private Bone _earRBone;
+        private Bone _tailBone;
+        private Bone _mouthBone;
         private float _headRotDeg;
         private float _faceX;
         private float _faceY;
-        private float _savedSpineTimeScale = 1f;
-        private bool _spinePaused;
         private SpineState _spineState = SpineState.Idle;
         private float _idleT;
         private bool _loggedMissingHead;
         private bool _loggedMissingFace;
+        private bool _loggedMissingEarL;
+        private bool _loggedMissingEarR;
+        private bool _loggedMissingTail;
+        private bool _loggedMissingMouth;
 
         private enum SpineState
         {
@@ -278,20 +284,21 @@ namespace Phase0
         private void BindSkeletonEvents()
         {
             if (_sa == null) return;
-            _sa.UpdateLocal -= OnSpineUpdateLocal;
-            _sa.UpdateLocal += OnSpineUpdateLocal;
+            _sa.UpdateWorld -= OnSpineUpdateWorld;
+            _sa.UpdateWorld += OnSpineUpdateWorld;
         }
 
         private void UnbindSkeletonEvents()
         {
             if (_sa == null) return;
-            _sa.UpdateLocal -= OnSpineUpdateLocal;
+            _sa.UpdateWorld -= OnSpineUpdateWorld;
         }
 
-        private void OnSpineUpdateLocal(ISkeletonAnimation anim)
+        private void OnSpineUpdateWorld(ISkeletonAnimation anim)
         {
             if (!Validate() || !settings.enableBoneFollow) return;
-            if (_headBone == null && _faceBone == null) TryBindBones(logSuccess: false);
+            if (_headBone == null && _faceBone == null && _earLBone == null && _earRBone == null && _tailBone == null && _mouthBone == null)
+                TryBindBones(logSuccess: false);
             if (_headBone != null) _headBone.Rotation = _headRotDeg;
             if (_faceBone != null)
             {
@@ -310,6 +317,18 @@ namespace Phase0
             if (!string.IsNullOrEmpty(settings.faceBoneName))
                 _faceBone = _sa.Skeleton.FindBone(settings.faceBoneName);
 
+            if (!string.IsNullOrEmpty(settings.earLBoneName))
+                _earLBone = _sa.Skeleton.FindBone(settings.earLBoneName);
+
+            if (!string.IsNullOrEmpty(settings.earRBoneName))
+                _earRBone = _sa.Skeleton.FindBone(settings.earRBoneName);
+
+            if (!string.IsNullOrEmpty(settings.tailBoneName))
+                _tailBone = _sa.Skeleton.FindBone(settings.tailBoneName);
+
+            if (!string.IsNullOrEmpty(settings.mouthBoneName))
+                _mouthBone = _sa.Skeleton.FindBone(settings.mouthBoneName);
+
             if (settings.logMissingBones)
             {
                 if (_headBone == null && !_loggedMissingHead && !string.IsNullOrEmpty(settings.headBoneName))
@@ -323,6 +342,30 @@ namespace Phase0
                     Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.faceBoneName}' on '{name}'.");
                     _loggedMissingFace = true;
                 }
+
+                if (_earLBone == null && !_loggedMissingEarL && !string.IsNullOrEmpty(settings.earLBoneName))
+                {
+                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.earLBoneName}' on '{name}'.");
+                    _loggedMissingEarL = true;
+                }
+
+                if (_earRBone == null && !_loggedMissingEarR && !string.IsNullOrEmpty(settings.earRBoneName))
+                {
+                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.earRBoneName}' on '{name}'.");
+                    _loggedMissingEarR = true;
+                }
+
+                if (_tailBone == null && !_loggedMissingTail && !string.IsNullOrEmpty(settings.tailBoneName))
+                {
+                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.tailBoneName}' on '{name}'.");
+                    _loggedMissingTail = true;
+                }
+
+                if (_mouthBone == null && !_loggedMissingMouth && !string.IsNullOrEmpty(settings.mouthBoneName))
+                {
+                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.mouthBoneName}' on '{name}'.");
+                    _loggedMissingMouth = true;
+                }
             }
 
             if (logSuccess && settings.logBoneBindSuccess)
@@ -335,6 +378,26 @@ namespace Phase0
                 if (_faceBone != null)
                 {
                     Debug.Log($"Phase0GameFeelFX: Bound face bone '{_faceBone.Data.Name}' on '{name}'.");
+                }
+
+                if (_earLBone != null)
+                {
+                    Debug.Log($"Phase0GameFeelFX: Bound ear L bone '{_earLBone.Data.Name}' on '{name}'.");
+                }
+
+                if (_earRBone != null)
+                {
+                    Debug.Log($"Phase0GameFeelFX: Bound ear R bone '{_earRBone.Data.Name}' on '{name}'.");
+                }
+
+                if (_tailBone != null)
+                {
+                    Debug.Log($"Phase0GameFeelFX: Bound tail bone '{_tailBone.Data.Name}' on '{name}'.");
+                }
+
+                if (_mouthBone != null)
+                {
+                    Debug.Log($"Phase0GameFeelFX: Bound mouth bone '{_mouthBone.Data.Name}' on '{name}'.");
                 }
             }
         }
@@ -374,28 +437,11 @@ namespace Phase0
             {
                 if (state == SpineState.Dragging)
                 {
-                    if (settings != null && settings.pauseSpineWhileDragging)
-                    {
-                        if (!_spinePaused)
-                        {
-                            _savedSpineTimeScale = _sa.timeScale;
-                            _sa.timeScale = 0f;
-                            _spinePaused = true;
-                        }
-                    }
-                    else
-                    {
-                        _sa.AnimationState.ClearTracks();
-                    }
+                    float mix = settings != null ? settings.dragStopMixDuration : 0f;
+                    _sa.AnimationState.SetEmptyAnimation(0, Mathf.Max(0f, mix));
                 }
                 else
                 {
-                    if (_spinePaused)
-                    {
-                        _sa.timeScale = _savedSpineTimeScale;
-                        _spinePaused = false;
-                    }
-
                     if (settings != null && settings.playIdleAnimation && !string.IsNullOrEmpty(settings.idleAnimationName))
                     {
                         if (_sa.AnimationState.Data.SkeletonData.FindAnimation(settings.idleAnimationName) != null)

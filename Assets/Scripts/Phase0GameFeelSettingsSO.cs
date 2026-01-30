@@ -40,9 +40,10 @@ namespace Phase0
         public Vector2 faceOffsetYMinMax = new Vector2(-40f, 40f);
         [Header("Spine Animation")]
         public bool pauseSpineWhileDragging = true;
+        [Min(0f)] public float dragStopMixDuration = 0.08f;
         [Tooltip("If true, plays idleAnimationName on state Idle. Leave name empty to keep current.")]
         public bool playIdleAnimation = true;
-        public string idleAnimationName = "idle";
+        public string idleAnimationName = "animation";
 
         [Header("Spine Idle (procedural)")]
         [Tooltip("Adds a subtle procedural idle even if no animation is playing.")]
@@ -54,5 +55,11 @@ namespace Phase0
         [Header("Spine Debug")]
         public bool logMissingBones = true;
         public bool logBoneBindSuccess = false;
+
+        [Header("Optional Extra Bones")]
+        public string earLBoneName = "ear_L";
+        public string earRBoneName = "ear_R";
+        public string tailBoneName = "Tail";
+        public string mouthBoneName = "mouth";
     }
 }

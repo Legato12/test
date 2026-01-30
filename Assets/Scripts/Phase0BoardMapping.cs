@@ -16,6 +16,8 @@ namespace Phase0
         public Vector2 cellStep;          // (cellSize + gap, cellSize + gap) inferred from scene
         public Vector2 cell00World;       // center of Cell_0_0 in world
 
+        public Rect gridWorldRect;        // world rect covering full grid footprint
+
         public bool TryAutoInitFromGridRoot(Transform gridRoot, int expectedGridSize = 4)
         {
             if (gridRoot == null) return false;
@@ -33,6 +35,14 @@ namespace Phase0
                 (c10.position - c00.position).x,
                 (c01.position - c00.position).y
             );
+
+            float cellSizeX = Mathf.Abs(cellStep.x);
+            float cellSizeY = Mathf.Abs(cellStep.y);
+            float minX = cell00World.x - cellSizeX * 0.5f;
+            float minY = cell00World.y - cellSizeY * 0.5f;
+            float sizeX = cellSizeX * gridSize;
+            float sizeY = cellSizeY * gridSize;
+            gridWorldRect = new Rect(minX, minY, sizeX, sizeY);
 
             return true;
         }
@@ -52,6 +62,12 @@ namespace Phase0
         public bool IsInsideGrid(Vector2Int cell)
         {
             return cell.x >= 0 && cell.x < gridSize && cell.y >= 0 && cell.y < gridSize;
+        }
+
+        public bool IsInsideGridRect(Vector2 world)
+        {
+            return world.x >= gridWorldRect.xMin && world.x <= gridWorldRect.xMax
+                && world.y >= gridWorldRect.yMin && world.y <= gridWorldRect.yMax;
         }
 
         public float DistanceToCellCenter(Vector2 world, Vector2Int cell)

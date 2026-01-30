@@ -274,41 +274,17 @@ namespace Phase0
             }
             else
             {
-                // If we have a candidate (inside grid), invalid = bounce back to origin-before-drag (requirement)
-                if (_brain.HasCandidate)
+                StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
+
+                if (gameFeelFx != null)
                 {
-                    StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
-
-                    if (gameFeelFx != null)
-                    {
-                        gameFeelFx.OnDropInvalid();
-                    }
-
-                    Phase0Haptics.Pulse(this, count: 2, intervalSeconds: 0.05f);
-
-                    // Re-occupy original cells if it was placed before
-                    _brain.RestorePlacementIfAny();
+                    gameFeelFx.OnDropInvalid();
                 }
-                else
-                {
-                    // Outside-grid drop: allow "parking" outside the grid anywhere on-screen,
-                    // as long as the piece does not overlap the grid area at all.
-                    // If it overlaps the grid, push it just outside (small gap) and tween there.
-                    var current = activePieceRoot.position;
 
-                    if (DoesPieceOverlapGrid(current, out var pushedTarget))
-                    {
-                        StartCoroutine(TweenOvershoot(activePieceRoot, current, pushedTarget, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
-                    }
-                    else
-                    {
-                        // Valid outside placement: keep where released; tiny settle for feel
-                        StartCoroutine(TweenOvershoot(activePieceRoot, current, current, 0.10f));
-                    }
+                Phase0Haptics.Pulse(this, count: 2, intervalSeconds: 0.05f);
 
-                    _brain.ClearPlacementOutsideGrid();
-                    _lastPlacedWorldCells = null;
-                }
+                // Re-occupy original cells if it was placed before
+                _brain.RestorePlacementIfAny();
             }
 
             if (ghostView != null) ghostView.SetVisible(false);
@@ -316,9 +292,9 @@ namespace Phase0
 
         private void UpdateCandidateAndGhost(Vector2 pointerWorld)
         {
-            // Outside grid is allowed; off-screen is clamped earlier.
+            // Outside grid is not valid; off-screen is clamped earlier.
             var approxCell = _mapping.WorldToCellRound(pointerWorld);
-            bool inside = _mapping.IsInsideGrid(approxCell);
+            bool inside = _mapping.IsInsideGridRect(pointerWorld);
 
             bool shouldSwitch = false;
             if (_brain.HasCandidate)
@@ -343,21 +319,9 @@ namespace Phase0
                 // Apply footprint
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
 
-                // Filter ghost tiles so we never draw outside the grid.
                 var localCells = _brain.LocalCells;
-                var inGridCells = new List<Vector2Int>(localCells.Length);
-                for (int i = 0; i < localCells.Length; i++)
-                {
-                    var worldCell = new Vector2Int(_brain.CandidateOriginCell.x + localCells[i].x,
-                        _brain.CandidateOriginCell.y + localCells[i].y);
-                    if (_mapping.IsInsideGrid(worldCell))
-                    {
-                        inGridCells.Add(new Vector2Int(localCells[i].x, localCells[i].y));
-                    }
-                }
-
-                ghostView.EnsureTiles(inGridCells.Count, cellSize);
-                ghostView.ApplyLocalCells(inGridCells.ToArray(), _mapping.cellStep.x, _mapping.cellStep.y);
+                ghostView.EnsureTiles(localCells.Length, cellSize);
+                ghostView.ApplyLocalCells(ToVector2IntArray(localCells), _mapping.cellStep.x, _mapping.cellStep.y);
 
                 if (_brain.CandidateValid)
                 {
@@ -484,70 +448,6 @@ namespace Phase0
             world.z = 0f;
 
             return world;
-        }
-
-        
-        private bool DoesPieceOverlapGrid(Vector3 piecePos, out Vector3 pushedTarget)
-        {
-            pushedTarget = piecePos;
-
-            float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
-
-            // Grid rect in world (inclusive of cell extents)
-            float gridMinX = _mapping.cell00World.x - cellSize * 0.5f;
-            float gridMinY = _mapping.cell00World.y - cellSize * 0.5f;
-            float gridMaxX = _mapping.cell00World.x + (_mapping.gridSize - 1) * _mapping.cellStep.x + cellSize * 0.5f;
-            float gridMaxY = _mapping.cell00World.y + (_mapping.gridSize - 1) * _mapping.cellStep.y + cellSize * 0.5f;
-
-            // Piece AABB from footprint tiles (based on localCells)
-            float minX = float.PositiveInfinity, minY = float.PositiveInfinity;
-            float maxX = float.NegativeInfinity, maxY = float.NegativeInfinity;
-
-            var localCells = _brain.LocalCells;
-            for (int i = 0; i < localCells.Length; i++)
-            {
-                var c = localCells[i];
-                float cx = piecePos.x + c.x * _mapping.cellStep.x;
-                float cy = piecePos.y + c.y * _mapping.cellStep.y;
-
-                minX = Mathf.Min(minX, cx - cellSize * 0.5f);
-                minY = Mathf.Min(minY, cy - cellSize * 0.5f);
-                maxX = Mathf.Max(maxX, cx + cellSize * 0.5f);
-                maxY = Mathf.Max(maxY, cy + cellSize * 0.5f);
-            }
-
-            bool overlaps = !(maxX <= gridMinX || minX >= gridMaxX || maxY <= gridMinY || minY >= gridMaxY);
-            if (!overlaps) return false;
-
-            // Push out by minimal translation + margin
-            const float margin = 0.08f;
-
-            float moveLeft = (gridMinX - maxX) - margin;   // negative
-            float moveRight = (gridMaxX - minX) + margin;  // positive
-            float moveDown = (gridMinY - maxY) - margin;   // negative
-            float moveUp = (gridMaxY - minY) + margin;     // positive
-
-            float bestAbs = float.PositiveInfinity;
-            Vector3 bestDelta = Vector3.zero;
-
-            void Consider(float move, Vector3 delta)
-            {
-                float a = Mathf.Abs(move);
-                if (a < bestAbs)
-                {
-                    bestAbs = a;
-                    bestDelta = delta;
-                }
-            }
-
-            Consider(moveLeft, new Vector3(moveLeft, 0f, 0f));
-            Consider(moveRight, new Vector3(moveRight, 0f, 0f));
-            Consider(moveDown, new Vector3(0f, moveDown, 0f));
-            Consider(moveUp, new Vector3(0f, moveUp, 0f));
-
-            pushedTarget = piecePos + bestDelta;
-            pushedTarget = ClampToCameraBounds(pushedTarget, mainCamera, paddingWorld: 0.3f);
-            return true;
         }
 
 // Lightweight overshoot tween (position only)

@@ -14,6 +14,8 @@ namespace Phase0
 
         private int _rotationCW;
         private Int2[] _localCells;
+        private Int2 _localMin;
+        private Int2 _localMax;
 
         private bool _hasCandidate;
         private Int2 _candidateOriginCell;
@@ -78,14 +80,16 @@ namespace Phase0
                 return;
             }
 
+            var clamped = ClampOriginToFit(approxCell);
+
             if (_hasCandidate)
             {
                 if (shouldSwitchCandidate)
-                    _candidateOriginCell = approxCell;
+                    _candidateOriginCell = clamped;
             }
             else
             {
-                _candidateOriginCell = approxCell;
+                _candidateOriginCell = clamped;
                 _hasCandidate = true;
             }
 
@@ -133,10 +137,34 @@ namespace Phase0
             if (_baseCells == null || _baseCells.Length == 0)
             {
                 _localCells = new[] { Int2.zero };
+                _localMin = Int2.zero;
+                _localMax = Int2.zero;
                 return;
             }
 
             _localCells = ShapeRotation.GetRotatedNormalized(_baseCells, _pivot, _rotationCW);
+            int minX = _localCells.Min(c => c.x);
+            int minY = _localCells.Min(c => c.y);
+            int maxX = _localCells.Max(c => c.x);
+            int maxY = _localCells.Max(c => c.y);
+            _localMin = new Int2(minX, minY);
+            _localMax = new Int2(maxX, maxY);
+        }
+
+        private Int2 ClampOriginToFit(Int2 approxCell)
+        {
+            int minOriginX = -_localMin.x;
+            int minOriginY = -_localMin.y;
+            int maxOriginX = _grid.gridSize - 1 - _localMax.x;
+            int maxOriginY = _grid.gridSize - 1 - _localMax.y;
+
+            if (maxOriginX < minOriginX) maxOriginX = minOriginX;
+            if (maxOriginY < minOriginY) maxOriginY = minOriginY;
+
+            int clampedX = approxCell.x < minOriginX ? minOriginX : (approxCell.x > maxOriginX ? maxOriginX : approxCell.x);
+            int clampedY = approxCell.y < minOriginY ? minOriginY : (approxCell.y > maxOriginY ? maxOriginY : approxCell.y);
+
+            return new Int2(clampedX, clampedY);
         }
     }
 }

@@ -34,6 +34,10 @@ namespace Phase0
         [Tooltip("Local offsets for Spine child per CW rotation index (0-3).")]
         public Vector2[] spineOffsets = new Vector2[4];
 
+        [Header("Spine Visual Offset")]
+        [Tooltip("Constant local offset for SpineVisualOffset child (not per-rotation).")]
+        public Vector2 spineVisualOffset;
+
         [Header("Hysteresis")]
         [Tooltip("How far finger must move away from current cell center (in world units) before we switch to a neighbor cell.")]
         public float cellSwitchHysteresisWorld = 0.32f;
@@ -243,20 +247,39 @@ namespace Phase0
 
             if (wasTap)
             {
-                // Tap: rotate only when stationary. Do NOT allow rotate while already placed on the board.
                 if (!_brain.IsPlacedOnBoard)
                 {
+                    // Tap: rotate when not placed on board. Revalidate placement if it exists outside board.
+                    int previousRotation = _brain.RotationCW;
+                    bool hadPlacement = _brain.LastPlacedWorldCells != null && _brain.LastPlacedWorldCells.Length > 0;
+                    Int2 originCell = hadPlacement
+                        ? _brain.LastPlacedOriginCell
+                        : new Int2(_mapping.WorldToCellRound(activePieceRoot.position).x,
+                            _mapping.WorldToCellRound(activePieceRoot.position).y);
+
                     RotateCW();
+
+                    if (hadPlacement)
+                    {
+                        if (_brain.TryCommitPlacementAt(originCell, out _))
+                        {
+                            _lastPlacedWorldCells = _brain.LastPlacedWorldCells;
+                        }
+                        else
+                        {
+                            _brain.SetRotationCW(previousRotation);
+                            ApplyRotationVisuals();
+                            _brain.RestorePlacementIfAny();
+                        }
+                    }
+
                     if (gameFeelFx != null)
                     {
                         gameFeelFx.OnRotateTap();
                     }
                 }
-                if (ghostView != null) ghostView.SetVisible(false);
 
-                // If the piece was previously placed, keep it placed (no movement)
-                // and re-occupy cells.
-                _brain.RestorePlacementIfAny();
+                if (ghostView != null) ghostView.SetVisible(false);
                 return;
             }
 
@@ -380,7 +403,7 @@ namespace Phase0
                         intersecting.Add(new Vector2Int(localCells[i].x, localCells[i].y));
                 }
 
-                if (intersecting.Count == 0)
+                if (intersecting.Count == 0 && _brain.CandidateValid)
                 {
                     ghostView.SetVisible(false);
                     return;
@@ -389,10 +412,14 @@ namespace Phase0
                 ghostView.SetVisible(true);
                 ghostView.transform.position = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
-                // Apply footprint (only intersecting local offsets)
+                // Apply footprint (valid: intersecting, invalid: full footprint)
+                var cellsToDraw = _brain.CandidateValid
+                    ? intersecting.ToArray()
+                    : ToVector2IntArray(localCells);
+
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
-                ghostView.EnsureTiles(intersecting.Count, cellSize);
-                ghostView.ApplyLocalCells(intersecting.ToArray(), _mapping.cellStep.x, _mapping.cellStep.y);
+                ghostView.EnsureTiles(cellsToDraw.Length, cellSize);
+                ghostView.ApplyLocalCells(cellsToDraw, _mapping.cellStep.x, _mapping.cellStep.y);
 
                 if (_brain.CandidateValid)
                 {
@@ -409,6 +436,11 @@ namespace Phase0
         {
             _brain.RotateCW();
 
+            ApplyRotationVisuals();
+        }
+
+        private void ApplyRotationVisuals()
+        {
             // Update placeholder tiles layout (not rotating transform)
             var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
             if (pieceTiles != null)
@@ -422,6 +454,11 @@ namespace Phase0
                 var spineAnchor = activePieceRoot.Find("SpineAnchor");
                 if (spineAnchor != null)
                 {
+                    if (spineAnchor.localPosition != Vector3.zero)
+                    {
+                        Debug.LogWarning("Phase0GameController: SpineAnchor.localPosition should be (0,0,0) to avoid pivot drift.", spineAnchor);
+                    }
+
                     float angle = -90f * _brain.RotationCW;
                     _rotationTween.Stop();
                     float duration = sceneConfig != null ? sceneConfig.rotateDuration : 0.12f;
@@ -432,11 +469,10 @@ namespace Phase0
                     var target = Quaternion.Euler(0f, 0f, angle);
                     _rotationTween = Tween.LocalRotation(spineAnchor, target, duration, Easing.Overshoot(strength));
 
-                    if (spineAnchor.childCount > 0 && spineOffsets != null && spineOffsets.Length >= 4)
+                    var visualOffset = spineAnchor.Find("SpineVisualOffset");
+                    if (visualOffset != null)
                     {
-                        var spineChild = spineAnchor.GetChild(0);
-                        var offset = spineOffsets[_brain.RotationCW];
-                        spineChild.localPosition = new Vector3(offset.x, offset.y, spineChild.localPosition.z);
+                        visualOffset.localPosition = new Vector3(spineVisualOffset.x, spineVisualOffset.y, visualOffset.localPosition.z);
                     }
                 }
             }

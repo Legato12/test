@@ -21,6 +21,7 @@ namespace Phase0
 
         private bool _isPlacedOnBoard;
         private Int2[] _lastPlacedWorldCells;
+        private Int2 _lastPlacedOriginCell;
 
         public int RotationCW => _rotationCW;
         public Int2[] LocalCells => _localCells;
@@ -29,6 +30,7 @@ namespace Phase0
         public bool CandidateValid => _candidateValid;
         public bool IsPlacedOnBoard => _isPlacedOnBoard;
         public Int2[] LastPlacedWorldCells => _lastPlacedWorldCells;
+        public Int2 LastPlacedOriginCell => _lastPlacedOriginCell;
 
         public void Initialize(int gridSize,
             IEnumerable<Int2> blockedCells,
@@ -49,6 +51,7 @@ namespace Phase0
             _candidateValid = false;
             _isPlacedOnBoard = false;
             _lastPlacedWorldCells = null;
+            _lastPlacedOriginCell = Int2.zero;
         }
 
         public void SetShape(Int2[] baseCells, Int2 pivot)
@@ -61,6 +64,12 @@ namespace Phase0
         public void RotateCW()
         {
             _rotationCW = (_rotationCW + 1) & 3;
+            RecomputeLocalCells();
+        }
+
+        public void SetRotationCW(int rotationCW)
+        {
+            _rotationCW = rotationCW & 3;
             RecomputeLocalCells();
         }
 
@@ -109,11 +118,44 @@ namespace Phase0
             if (!_hasCandidate || !_candidateValid) return null;
 
             var worldCells = _localCells.Select(c => _candidateOriginCell + c).ToArray();
-            _grid.AddOccupied(worldCells);
+            var inBoardCells = worldCells.Where(_grid.IsInside).ToArray();
+            if (inBoardCells.Length > 0)
+            {
+                _grid.AddOccupied(inBoardCells);
+                _lastPlacedWorldCells = inBoardCells;
+                _isPlacedOnBoard = true;
+            }
+            else
+            {
+                _lastPlacedWorldCells = null;
+                _isPlacedOnBoard = false;
+            }
 
-            _lastPlacedWorldCells = worldCells;
-            _isPlacedOnBoard = true;
+            _lastPlacedOriginCell = _candidateOriginCell;
             return worldCells;
+        }
+
+        public bool TryCommitPlacementAt(Int2 originCell, out Int2 firstInvalid)
+        {
+            if (!_grid.CanPlace(originCell, _localCells, out firstInvalid))
+                return false;
+
+            var worldCells = _localCells.Select(c => originCell + c).ToArray();
+            var inBoardCells = worldCells.Where(_grid.IsInside).ToArray();
+            if (inBoardCells.Length > 0)
+            {
+                _grid.AddOccupied(inBoardCells);
+                _lastPlacedWorldCells = inBoardCells;
+                _isPlacedOnBoard = true;
+            }
+            else
+            {
+                _lastPlacedWorldCells = null;
+                _isPlacedOnBoard = false;
+            }
+
+            _lastPlacedOriginCell = originCell;
+            return true;
         }
 
         private void RecomputeLocalCells()

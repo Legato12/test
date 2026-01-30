@@ -5,6 +5,7 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using PrimeTween;
 using UnityEngine;
 
 namespace Phase0
@@ -48,6 +49,7 @@ namespace Phase0
         private Vector3 _pieceOriginBeforeDrag;
         private Vector3 _velocity;                  // SmoothDamp velocity
         private Vector3 _dragOffsetWorld;
+        private Sequence _positionTween;
 
         private Int2[] _lastPlacedWorldCells; // cached after placement
 
@@ -166,6 +168,8 @@ namespace Phase0
             _dragStarted = false;
             _downScreenPos = pointer.screenPos;
 
+            _positionTween.Stop();
+
 
             _pieceOriginBeforeDrag = activePieceRoot.position;
 
@@ -260,8 +264,7 @@ namespace Phase0
                 // Snap to candidate origin cell
                 Vector3 snapPos = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
-                // Animate with simple overshoot (without external libs)
-                StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, snapPos, sceneConfig != null ? sceneConfig.snapDuration : 0.12f));
+                PlaySnapTween(activePieceRoot.position, snapPos, isValid: true);
 
                 // Mark occupied cells
                 _lastPlacedWorldCells = _brain.PlaceCandidate();
@@ -274,7 +277,7 @@ namespace Phase0
             }
             else
             {
-                StartCoroutine(TweenOvershoot(activePieceRoot, activePieceRoot.position, _pieceOriginBeforeDrag, sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f));
+                PlaySnapTween(activePieceRoot.position, _pieceOriginBeforeDrag, isValid: false);
 
                 if (gameFeelFx != null)
                 {
@@ -288,6 +291,61 @@ namespace Phase0
             }
 
             if (ghostView != null) ghostView.SetVisible(false);
+        }
+
+        private void PlaySnapTween(Vector3 from, Vector3 to, bool isValid)
+        {
+            _positionTween.Stop();
+
+            float duration = isValid
+                ? (sceneConfig != null ? sceneConfig.snapDuration : 0.12f)
+                : (sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f);
+
+            float phase = isValid
+                ? (sceneConfig != null ? sceneConfig.snapOvershootPhase : 0.65f)
+                : (sceneConfig != null ? sceneConfig.bounceBackOvershootPhase : 0.55f);
+
+            phase = Mathf.Clamp01(phase);
+            duration = Mathf.Max(0.01f, duration);
+
+            float dist = Vector3.Distance(from, to);
+            float ratio = isValid
+                ? (sceneConfig != null ? sceneConfig.snapOvershootRatio : 0.20f)
+                : (sceneConfig != null ? sceneConfig.bounceBackOvershootRatio : 0.12f);
+            float max = isValid
+                ? (sceneConfig != null ? sceneConfig.snapOvershootMax : 0.18f)
+                : (sceneConfig != null ? sceneConfig.bounceBackOvershootMax : 0.12f);
+
+            Vector3 overshoot = Vector3.zero;
+            if (dist > 0.0001f)
+            {
+                overshoot = (to - from).normalized * Mathf.Min(max, dist * Mathf.Max(0f, ratio));
+            }
+
+            Vector3 over = to + overshoot;
+            float first = duration * phase;
+            float second = duration - first;
+
+            var sequence = Sequence.Create();
+            if (first > 0.0001f)
+            {
+                sequence.Chain(Tween.Position(activePieceRoot, over, first, Ease.OutCubic));
+            }
+
+            if (second > 0.0001f)
+            {
+                var settleStrength = isValid
+                    ? (sceneConfig != null ? sceneConfig.snapSettleOvershootStrength : 1.0f)
+                    : (sceneConfig != null ? sceneConfig.bounceBackBounceStrength : 0.9f);
+
+                Easing ease = isValid
+                    ? Easing.Overshoot(settleStrength)
+                    : Easing.Bounce(settleStrength);
+
+                sequence.Chain(Tween.Position(activePieceRoot, to, second, ease));
+            }
+
+            _positionTween = sequence;
         }
 
         private void UpdateCandidateAndGhost(Vector2 pointerWorld)
@@ -487,44 +545,6 @@ namespace Phase0
             }
 
             return true;
-        }
-
-// Lightweight overshoot tween (position only)
-        private System.Collections.IEnumerator TweenOvershoot(Transform tr, Vector3 from, Vector3 to, float duration)
-        {
-            duration = Mathf.Max(0.01f, duration);
-
-            // Overshoot amount proportional to distance
-            float dist = Vector3.Distance(from, to);
-            Vector3 overshoot = (to - from).normalized * Mathf.Min(0.18f, dist * 0.20f);
-            Vector3 over = to + overshoot;
-
-            float t = 0f;
-            float half = duration * 0.65f;
-
-            // Phase 1: to overshoot (fast-out)
-            while (t < half)
-            {
-                float a = t / half;
-                float eased = 1f - Mathf.Pow(1f - a, 3f);
-                tr.position = Vector3.LerpUnclamped(from, over, eased);
-                t += Time.deltaTime;
-                yield return null;
-            }
-
-            // Phase 2: settle back (ease-out)
-            t = 0f;
-            float rest = duration - half;
-            while (t < rest)
-            {
-                float a = t / rest;
-                float eased = 1f - Mathf.Pow(1f - a, 4f);
-                tr.position = Vector3.LerpUnclamped(over, to, eased);
-                t += Time.deltaTime;
-                yield return null;
-            }
-
-            tr.position = to;
         }
 
         private struct PointerState

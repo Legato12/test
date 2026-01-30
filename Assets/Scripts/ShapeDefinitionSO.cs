@@ -47,6 +47,14 @@ namespace Phase0
 
         [Header("Feel (view layer will use these)")]
         public float snapDuration = 0.12f;
+        [Range(0f, 1f)] public float snapOvershootRatio = 0.20f;
+        [Min(0f)] public float snapOvershootMax = 0.18f;
+        [Range(0.1f, 0.9f)] public float snapOvershootPhase = 0.65f;
+        [Range(0.1f, 2f)] public float snapSettleOvershootStrength = 1.0f;
         public float bounceBackDuration = 0.16f;
+        [Range(0f, 1f)] public float bounceBackOvershootRatio = 0.12f;
+        [Min(0f)] public float bounceBackOvershootMax = 0.12f;
+        [Range(0.1f, 0.9f)] public float bounceBackOvershootPhase = 0.55f;
+        [Range(0.1f, 2f)] public float bounceBackBounceStrength = 0.9f;
     }
 }

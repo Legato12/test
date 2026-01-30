@@ -17,4 +17,12 @@ MonoBehaviour:
   cellGap: 0.06
   tapDragThresholdPx: 10
   snapDuration: 0.12
+  snapOvershootRatio: 0.2
+  snapOvershootMax: 0.18
+  snapOvershootPhase: 0.65
+  snapSettleOvershootStrength: 1
   bounceBackDuration: 0.16
+  bounceBackOvershootRatio: 0.12
+  bounceBackOvershootMax: 0.12
+  bounceBackOvershootPhase: 0.55
+  bounceBackBounceStrength: 0.9

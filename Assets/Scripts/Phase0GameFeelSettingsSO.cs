@@ -58,10 +58,11 @@ namespace Phase0
 
         [Header("Spine Hatch Overlay (Invalid)")]
         public bool enableInvalidHatch = true;
-        public Color hatchColor = new Color(0.15f, 0.15f, 0.15f, 1f);
-        [Range(0f, 1f)] public float hatchOpacity = 0.8f;
-        [Range(0.01f, 0.5f)] public float hatchWidth = 0.18f;
+        public Color hatchColor = new Color(0.95f, 0.25f, 0.18f, 1f);
+        [Range(0f, 1f)] public float hatchOpacity = 0.9f;
+        [Range(0.01f, 0.5f)] public float hatchWidth = 0.24f;
         [Range(0f, 180f)] public float hatchAngleDeg = 45f;
+        [Min(0.1f)] public float hatchScale = 1.8f;
         [Min(0.1f)] public float stripesPerCell = 8f;
         [Range(0f, 1f)] public float hatchStrength = 1f;
 

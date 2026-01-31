@@ -17,6 +17,7 @@ namespace Phase0
         public Transform visualRoot;                 // what we scale
         public UnityEngine.Object skeletonAnimation; // assign SkeletonAnimation if using Spine bones
         public Phase0GameFeelSettingsSO settings;
+        [SerializeField] private bool debugForceHatch;
 
         private Vector3 _lastPos;
         private Vector3 _vel;
@@ -54,7 +55,7 @@ namespace Phase0
         private float _hatchScale = 4f;
 
 #if SPINE_UNITY
-        private MeshRenderer _skeletonRenderer;
+        private Renderer[] _hatchRenderers;
         private MaterialPropertyBlock _hatchBlock;
 
         private static readonly int HatchStrengthId = Shader.PropertyToID("_HatchStrength");
@@ -64,6 +65,7 @@ namespace Phase0
         private static readonly int HatchAngleId = Shader.PropertyToID("_HatchAngleDeg");
         private static readonly int HatchOpacityId = Shader.PropertyToID("_HatchOpacity");
 #endif
+        private bool _loggedForceHatch;
 
         private enum SpineState
         {
@@ -82,6 +84,13 @@ namespace Phase0
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
             ApplyHatchOverlay();
+        }
+
+        private void Start()
+        {
+#if SPINE_UNITY
+            LogSpineRenderers();
+#endif
         }
 
         private void OnEnable()
@@ -119,7 +128,7 @@ namespace Phase0
         public void SetHatchScaleForCellSize(float cellSize)
         {
             float stripesPerCell = settings != null ? settings.stripesPerCell : 8f;
-            float next = cellSize > 0.0001f ? (stripesPerCell / cellSize) : 4f;
+            float next = settings != null ? settings.hatchScale : (cellSize > 0.0001f ? (stripesPerCell / cellSize) : 4f);
             SetHatchScale(next);
         }
 
@@ -205,6 +214,7 @@ namespace Phase0
             TickNoShake();
             TickIdle();
             TickBoneFollow();
+            TickDebugForceHatch();
         }
 
         private void TickIdle()
@@ -504,21 +514,106 @@ namespace Phase0
 #if SPINE_UNITY
             if (_sa == null) _sa = ResolveSkeletonAnimation();
             if (_sa == null) return;
-            if (_skeletonRenderer == null) _skeletonRenderer = _sa.GetComponent<MeshRenderer>();
-            if (_skeletonRenderer == null) return;
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0) CacheHatchRenderers();
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0) return;
 
             if (_hatchBlock == null) _hatchBlock = new MaterialPropertyBlock();
-            _skeletonRenderer.GetPropertyBlock(_hatchBlock);
             float hatchStrength = _invalidHatchActive && settings != null ? settings.hatchStrength : 0f;
-            _hatchBlock.SetFloat(HatchStrengthId, hatchStrength);
-            _hatchBlock.SetColor(HatchColorId, settings != null ? settings.hatchColor : Color.black);
-            _hatchBlock.SetFloat(HatchScaleId, _hatchScale);
-            _hatchBlock.SetFloat(HatchWidthId, settings != null ? settings.hatchWidth : 0.18f);
-            _hatchBlock.SetFloat(HatchAngleId, settings != null ? settings.hatchAngleDeg : 45f);
-            _hatchBlock.SetFloat(HatchOpacityId, settings != null ? settings.hatchOpacity : 0.8f);
-            _skeletonRenderer.SetPropertyBlock(_hatchBlock);
+            for (int i = 0; i < _hatchRenderers.Length; i++)
+            {
+                var renderer = _hatchRenderers[i];
+                if (renderer == null) continue;
+                renderer.GetPropertyBlock(_hatchBlock);
+                _hatchBlock.SetFloat(HatchStrengthId, hatchStrength);
+                _hatchBlock.SetColor(HatchColorId, settings != null ? settings.hatchColor : Color.black);
+                _hatchBlock.SetFloat(HatchScaleId, settings != null ? settings.hatchScale : _hatchScale);
+                _hatchBlock.SetFloat(HatchWidthId, settings != null ? settings.hatchWidth : 0.18f);
+                _hatchBlock.SetFloat(HatchAngleId, settings != null ? settings.hatchAngleDeg : 45f);
+                _hatchBlock.SetFloat(HatchOpacityId, settings != null ? settings.hatchOpacity : 0.8f);
+                renderer.SetPropertyBlock(_hatchBlock);
+            }
 #endif
         }
+
+#if SPINE_UNITY
+        private void CacheHatchRenderers()
+        {
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+            var allRenderers = _sa.GetComponentsInChildren<Renderer>(true);
+            if (allRenderers == null || allRenderers.Length == 0) return;
+
+            var filtered = new System.Collections.Generic.List<Renderer>(allRenderers.Length);
+            for (int i = 0; i < allRenderers.Length; i++)
+            {
+                var r = allRenderers[i];
+                if (r == null) continue;
+                if (r is SpriteRenderer) continue;
+                filtered.Add(r);
+            }
+
+            _hatchRenderers = filtered.ToArray();
+        }
+
+        private void LogSpineRenderers()
+        {
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+            var renderers = _sa.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+            {
+                Debug.Log("Phase0GameFeelFX: No renderers found under Spine object.");
+                return;
+            }
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null) continue;
+                var mats = renderer.sharedMaterials;
+                int matCount = mats != null ? mats.Length : 0;
+                Debug.Log($"Phase0GameFeelFX: Renderer '{renderer.name}' ({renderer.GetType().Name}) mats={matCount}.");
+                if (mats == null) continue;
+                for (int m = 0; m < mats.Length; m++)
+                {
+                    var mat = mats[m];
+                    if (mat == null) continue;
+                    bool hasStrength = mat.HasProperty("_HatchStrength");
+                    bool hasScale = mat.HasProperty("_HatchScale");
+                    Debug.Log($"Phase0GameFeelFX:  - Mat[{m}] '{mat.name}' shader='{mat.shader.name}' hasStrength={hasStrength} hasScale={hasScale}.");
+                }
+            }
+        }
+
+        private void TickDebugForceHatch()
+        {
+            if (!debugForceHatch) return;
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0) CacheHatchRenderers();
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0) return;
+
+            if (_hatchBlock == null) _hatchBlock = new MaterialPropertyBlock();
+            for (int i = 0; i < _hatchRenderers.Length; i++)
+            {
+                var renderer = _hatchRenderers[i];
+                if (renderer == null) continue;
+                renderer.GetPropertyBlock(_hatchBlock);
+                _hatchBlock.SetFloat(HatchStrengthId, 1f);
+                _hatchBlock.SetFloat(HatchOpacityId, 1f);
+                _hatchBlock.SetFloat(HatchWidthId, 0.25f);
+                _hatchBlock.SetFloat(HatchScaleId, 3f);
+                renderer.SetPropertyBlock(_hatchBlock);
+            }
+
+            if (!_loggedForceHatch)
+            {
+                _loggedForceHatch = true;
+                string names = string.Join(", ", System.Array.ConvertAll(_hatchRenderers, r => r != null ? r.name : "<null>"));
+                Debug.Log($"Phase0GameFeelFX: debugForceHatch active. Applied MPB to: {names}");
+            }
+        }
+#endif
 
         private void TweenScale(Vector3 to, float duration, Ease ease)
         {

@@ -34,3 +34,24 @@ MonoBehaviour:
   faceOffsetXMinMax: {x: -20, y: 70}
   faceOffsetYMinMax: {x: -40, y: 40}
   pauseSpineWhileDragging: 0
+  dragStopMixDuration: 0.08
+  playIdleAnimation: 1
+  idleAnimationName: animation
+  enableIdleBreathing: 1
+  idleHeadBreathDegrees: 3
+  idleFaceBreath: 2
+  idleBreathSpeed: 1.5
+  logMissingBones: 1
+  logBoneBindSuccess: 0
+  enableInvalidHatch: 1
+  hatchColor: {r: 0.95, g: 0.25, b: 0.18, a: 1}
+  hatchOpacity: 0.9
+  hatchWidth: 0.24
+  hatchAngleDeg: 45
+  hatchScale: 1.8
+  stripesPerCell: 8
+  hatchStrength: 1
+  earLBoneName: ear_L
+  earRBoneName: ear_R
+  tailBoneName: Tail
+  mouthBoneName: mouth

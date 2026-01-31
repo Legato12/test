@@ -25,7 +25,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 		_HatchStrength ("Hatch Strength", Range(0,1)) = 0
 		_HatchColor ("Hatch Color", Color) = (0,0,0,1)
-		_HatchScale ("Hatch Scale", Range(0.1,20)) = 4
+		_HatchScale ("Hatch Scale", Range(0.1,20)) = 8
 		_HatchWidth ("Hatch Width", Range(0.01,0.5)) = 0.18
 		_HatchAngleDeg ("Hatch Angle (Deg)", Range(0,180)) = 45
 		_HatchOpacity ("Hatch Opacity", Range(0,1)) = 0.8

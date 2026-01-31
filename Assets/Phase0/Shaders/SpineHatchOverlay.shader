@@ -35,6 +35,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 		_OutlineEnabled ("Outline Enabled", Float) = 0
 		_OutlineColor ("Outline Color", Color) = (1,0,0,1)
 		_OutlineThicknessPx ("Outline Thickness (px)", Range(0,12)) = 3
+		_OutlineCenterWS ("Outline Center WS", Vector) = (0,0,0,0)
 
 		[HideInInspector] _SrcBlend ("__src", Float) = 1.0
 		[HideInInspector] _DstBlend ("__dst", Float) = 0.0
@@ -56,7 +57,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 	SubShader
 	{
-		Tags { "Queue"="Transparent" "RenderType"="Sprite" "AlphaDepth"="False" "CanUseSpriteAtlas"="True" "IgnoreProjector"="True" }
+		Tags { "Queue"="Transparent" "RenderType"="Transparent" "AlphaDepth"="False" "CanUseSpriteAtlas"="True" "IgnoreProjector"="True" }
 		LOD 100
 
 		Stencil {
@@ -69,11 +70,11 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 		{
 			Name "Outline"
 
-			Blend [_SrcBlend] [_DstBlend]
+			Blend SrcAlpha OneMinusSrcAlpha
 			Lighting Off
-			ZWrite [_ZWrite]
+			ZWrite Off
 			ZTest LEqual
-			Cull [_Cull]
+			Cull Off
 			Lighting Off
 
 			CGPROGRAM
@@ -98,6 +99,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 				uniform float _OutlineEnabled;
 				uniform float4 _OutlineColor;
 				uniform float _OutlineThicknessPx;
+				uniform float4 _OutlineCenterWS;
 
 				struct VertexInput
 				{
@@ -129,13 +131,19 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 					UNITY_SETUP_INSTANCE_ID(input);
 					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-					float4 clipPos = calculateLocalPos(input.vertex);
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
 					float4 centerClip = UnityObjectToClipPos(float4(0, 0, 0, 1));
-					float2 dir = clipPos.xy - centerClip.xy;
-					float len = max(length(dir), 1e-5);
-					float2 dirN = dir / len;
-					float2 offsetNDC = dirN * _OutlineThicknessPx * float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
-					clipPos.xy += offsetNDC * clipPos.w;
+					if (_OutlineCenterWS.w > 0.5)
+					{
+						centerClip = UnityWorldToClipPos(_OutlineCenterWS.xyz);
+					}
+					float2 a = clipPos.xy / clipPos.w;
+					float2 c = centerClip.xy / centerClip.w;
+					float2 dir = a - c;
+					float len = length(dir);
+					float2 dirN = (len < 1e-5) ? float2(0, 1) : (dir / len);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += dirN * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
 
 					output.pos = clipPos;
 					output.texcoord = calculateTextureCoord(input.texcoord);
@@ -171,11 +179,11 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 		{
 			Name "Normal"
 
-			Blend [_SrcBlend] [_DstBlend]
+			Blend SrcAlpha OneMinusSrcAlpha
 			Lighting Off
-			ZWrite [_ZWrite]
+			ZWrite Off
 			ZTest LEqual
-			Cull [_Cull]
+			Cull Off
 			Lighting Off
 
 			CGPROGRAM
@@ -301,7 +309,8 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 			Offset 1, 1
 
 			Fog { Mode Off }
-			ZWrite On
+			Blend SrcAlpha OneMinusSrcAlpha
+			ZWrite Off
 			ZTest LEqual
 			Cull Off
 			Lighting Off

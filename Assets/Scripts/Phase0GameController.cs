@@ -58,6 +58,7 @@ namespace Phase0
         private Tween _rotationTween;
 
         private Int2[] _lastPlacedWorldCells; // cached after placement
+        private Renderer[] _cachedPieceRenderers;
 
         private void Awake()
         {
@@ -67,6 +68,8 @@ namespace Phase0
         private void Start()
         {
             if (mainCamera == null) mainCamera = Camera.main;
+
+            CachePieceRenderers();
 
             if (sceneConfig == null)
             {
@@ -236,7 +239,7 @@ namespace Phase0
             if (_movedBeyondThreshold)
             {
                 Vector3 target = new Vector3(pointer.worldPos.x, pointer.worldPos.y, 0f) + _dragOffsetWorld;
-                target = ClampToCameraBounds(target, mainCamera, activePieceRoot, fallbackPaddingWorld: 0.3f, fallbackExtents: GetFallbackPieceExtents());
+                target = ClampToCameraBounds(target, mainCamera, activePieceRoot, _cachedPieceRenderers, fallbackPaddingWorld: 0.3f, fallbackExtents: GetFallbackPieceExtents());
 
                 activePieceRoot.position = Vector3.SmoothDamp(
                     activePieceRoot.position,
@@ -614,6 +617,17 @@ namespace Phase0
             }
         }
 
+        private void CachePieceRenderers()
+        {
+            if (activePieceRoot == null)
+            {
+                _cachedPieceRenderers = null;
+                return;
+            }
+
+            _cachedPieceRenderers = activePieceRoot.GetComponentsInChildren<Renderer>(includeInactive: true);
+        }
+
         private Sprite ResolveDefaultOutlineSprite()
         {
             if (ghostView != null && ghostView.outlineSprite != null) return ghostView.outlineSprite;
@@ -646,7 +660,7 @@ namespace Phase0
             return false;
         }
 
-        private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, float fallbackPaddingWorld, Vector2 fallbackExtents)
+        private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, Renderer[] cachedRenderers, float fallbackPaddingWorld, Vector2 fallbackExtents)
         {
             // Orthographic bounds
             float halfH = cam.orthographicSize;
@@ -657,7 +671,7 @@ namespace Phase0
             float minY = cam.transform.position.y - halfH;
             float maxY = cam.transform.position.y + halfH;
 
-            if (TryGetRendererBounds(root, out var bounds))
+            if (TryGetRendererBounds(cachedRenderers, out var bounds))
             {
                 Vector3 offset = bounds.center - root.position;
                 Vector3 extents = bounds.extents;
@@ -686,18 +700,17 @@ namespace Phase0
             return world;
         }
 
-        private static bool TryGetRendererBounds(Transform root, out Bounds bounds)
+        private static bool TryGetRendererBounds(Renderer[] cachedRenderers, out Bounds bounds)
         {
             bounds = default;
-            if (root == null) return false;
+            if (cachedRenderers == null || cachedRenderers.Length == 0) return false;
 
-            var renderers = root.GetComponentsInChildren<Renderer>(includeInactive: true);
-            if (renderers == null || renderers.Length == 0) return false;
-
-            bounds = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++)
+            bounds = cachedRenderers[0].bounds;
+            for (int i = 1; i < cachedRenderers.Length; i++)
             {
-                bounds.Encapsulate(renderers[i].bounds);
+                var renderer = cachedRenderers[i];
+                if (renderer == null) continue;
+                bounds.Encapsulate(renderer.bounds);
             }
 
             return true;
@@ -715,10 +728,18 @@ namespace Phase0
                 return new Vector2(half, half);
             }
 
-            int minX = localCells.Min(c => c.x);
-            int maxX = localCells.Max(c => c.x);
-            int minY = localCells.Min(c => c.y);
-            int maxY = localCells.Max(c => c.y);
+            int minX = localCells[0].x;
+            int maxX = localCells[0].x;
+            int minY = localCells[0].y;
+            int maxY = localCells[0].y;
+            for (int i = 1; i < localCells.Length; i++)
+            {
+                var cell = localCells[i];
+                if (cell.x < minX) minX = cell.x;
+                if (cell.x > maxX) maxX = cell.x;
+                if (cell.y < minY) minY = cell.y;
+                if (cell.y > maxY) maxY = cell.y;
+            }
 
             float width = (maxX - minX + 1) * stepX;
             float height = (maxY - minY + 1) * stepY;

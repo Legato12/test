@@ -59,7 +59,10 @@ namespace Phase0
 
 #if SPINE_UNITY
         private Renderer[] _hatchRenderers;
+        private Renderer _outlineCenterRenderer;
         private MaterialPropertyBlock _hatchBlock;
+        private Vector3 _lastOutlineCenterWs;
+        private bool _hasOutlineCenter;
 
         private static readonly int HatchStrengthId = Shader.PropertyToID("_HatchStrength");
         private static readonly int HatchColorId = Shader.PropertyToID("_HatchColor");
@@ -72,6 +75,7 @@ namespace Phase0
         private static readonly int OutlineEnabledId = Shader.PropertyToID("_OutlineEnabled");
         private static readonly int OutlineColorId = Shader.PropertyToID("_OutlineColor");
         private static readonly int OutlineThicknessId = Shader.PropertyToID("_OutlineThicknessPx");
+        private static readonly int OutlineCenterId = Shader.PropertyToID("_OutlineCenterWS");
 #endif
         private bool _loggedForceHatch;
 
@@ -138,6 +142,12 @@ namespace Phase0
             _invalidVisualActive = invalid;
             SetInvalidHatch(invalid);
             ApplyHatchOverlay();
+#if SPINE_UNITY
+            if (_invalidVisualActive)
+            {
+                UpdateOutlineCenterIfNeeded(force: true);
+            }
+#endif
         }
 
         public void SetHatchScaleForCellSize(float cellSize)
@@ -229,6 +239,9 @@ namespace Phase0
             TickNoShake();
             TickIdle();
             TickBoneFollow();
+#if SPINE_UNITY
+            TickOutlineCenter();
+#endif
             TickDebugForceHatch();
         }
 
@@ -548,6 +561,7 @@ namespace Phase0
             bool outlineEnabled = _invalidVisualActive && settings != null && (settings.invalidOutlineEnabled || settings.enableInvalidOutline);
             Color outlineColor = settings != null ? settings.outlineColor : Color.red;
             float outlineThickness = settings != null ? Mathf.Max(0f, settings.outlineThicknessPx) : 0f;
+            Vector4 outlineCenter = ResolveOutlineCenterVector(outlineEnabled);
 
             for (int i = 0; i < _hatchRenderers.Length; i++)
             {
@@ -565,6 +579,7 @@ namespace Phase0
                 _hatchBlock.SetFloat(OutlineEnabledId, outlineEnabled ? 1f : 0f);
                 _hatchBlock.SetColor(OutlineColorId, outlineColor);
                 _hatchBlock.SetFloat(OutlineThicknessId, outlineThickness);
+                _hatchBlock.SetVector(OutlineCenterId, outlineCenter);
                 renderer.SetPropertyBlock(_hatchBlock);
             }
 #endif
@@ -585,6 +600,67 @@ namespace Phase0
         }
 
 #if SPINE_UNITY
+        private void TickOutlineCenter()
+        {
+            if (!_invalidVisualActive) return;
+            UpdateOutlineCenterIfNeeded(force: _dragging || !_hasOutlineCenter);
+        }
+
+        private void UpdateOutlineCenterIfNeeded(bool force)
+        {
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+            if (_outlineCenterRenderer == null) CacheOutlineCenterRenderer();
+            if (_outlineCenterRenderer == null) return;
+
+            Vector3 center = _outlineCenterRenderer.bounds.center;
+            if (!force && _hasOutlineCenter && (center - _lastOutlineCenterWs).sqrMagnitude < 0.0001f)
+            {
+                return;
+            }
+
+            _lastOutlineCenterWs = center;
+            _hasOutlineCenter = true;
+            ApplyOutlineCenterToRenderers(center);
+        }
+
+        private Vector4 ResolveOutlineCenterVector(bool outlineEnabled)
+        {
+            if (!outlineEnabled)
+            {
+                return Vector4.zero;
+            }
+
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return Vector4.zero;
+            if (_outlineCenterRenderer == null) CacheOutlineCenterRenderer();
+            if (_outlineCenterRenderer == null) return Vector4.zero;
+
+            Vector3 center = _outlineCenterRenderer.bounds.center;
+            _lastOutlineCenterWs = center;
+            _hasOutlineCenter = true;
+            return new Vector4(center.x, center.y, center.z, 1f);
+        }
+
+        private void ApplyOutlineCenterToRenderers(Vector3 center)
+        {
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0) CacheHatchRenderers();
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0) return;
+            if (_hatchBlock == null) _hatchBlock = new MaterialPropertyBlock();
+
+            Vector4 value = new Vector4(center.x, center.y, center.z, 1f);
+            for (int i = 0; i < _hatchRenderers.Length; i++)
+            {
+                var renderer = _hatchRenderers[i];
+                if (renderer == null) continue;
+                renderer.GetPropertyBlock(_hatchBlock);
+                _hatchBlock.SetVector(OutlineCenterId, value);
+                renderer.SetPropertyBlock(_hatchBlock);
+            }
+        }
+#endif
+
+#if SPINE_UNITY
         private void CacheHatchRenderers()
         {
             if (_sa == null) _sa = ResolveSkeletonAnimation();
@@ -602,6 +678,22 @@ namespace Phase0
             }
 
             _hatchRenderers = filtered.ToArray();
+        }
+
+        private void CacheOutlineCenterRenderer()
+        {
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+
+            _outlineCenterRenderer = _sa.GetComponent<MeshRenderer>();
+            if (_outlineCenterRenderer == null)
+            {
+                _outlineCenterRenderer = _sa.GetComponent<Renderer>();
+            }
+            if (_outlineCenterRenderer == null)
+            {
+                _outlineCenterRenderer = _sa.GetComponentInChildren<Renderer>();
+            }
         }
 
         private void LogSpineRenderers()

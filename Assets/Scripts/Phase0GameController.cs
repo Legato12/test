@@ -29,6 +29,7 @@ namespace Phase0
 
         [Header("Game Feel FX")]
         public Phase0GameFeelFX gameFeelFx;
+        public Phase0BoardPlacedHighlightView placedHighlightView;
 
         [Header("Spine Offset (per rotation)")]
         [Tooltip("Local offsets for Spine child per CW rotation index (0-3).")]
@@ -185,6 +186,10 @@ namespace Phase0
             _pieceOriginBeforeDrag = activePieceRoot.position;
 
             // When picking up from board, clear occupied cells temporarily (so we can re-place)
+            if (_brain.IsPlacedOnBoard && placedHighlightView != null)
+            {
+                placedHighlightView.Clear();
+            }
             _brain.OnPickup();
 
             // Compute drag offset so it doesn't jump
@@ -194,7 +199,7 @@ namespace Phase0
             // Candidate init
             _brain.ResetCandidate();
             if (ghostView != null) ghostView.SetVisible(false);
-            if (gameFeelFx != null) gameFeelFx.SetInvalidHatch(false);
+            if (gameFeelFx != null) gameFeelFx.SetInvalidVisual(false);
         }
 
         private void OnPointerHeld(PointerState pointer)
@@ -250,7 +255,7 @@ namespace Phase0
             {
                 gameFeelFx.SetDragging(false);
             }
-            if (gameFeelFx != null) gameFeelFx.SetInvalidHatch(false);
+            if (gameFeelFx != null) gameFeelFx.SetInvalidVisual(false);
 
             if (wasTap)
             {
@@ -300,6 +305,15 @@ namespace Phase0
 
                 // Mark occupied cells
                 _lastPlacedWorldCells = _brain.PlaceCandidate();
+
+                if (placedHighlightView != null && _brain.IsPlacedOnBoard && _brain.LastPlacedWorldCells != null)
+                {
+                    var cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
+                    var color = gameFeelFx != null && gameFeelFx.settings != null
+                        ? gameFeelFx.settings.placedOutlineColor
+                        : new Color(0.25f, 0.9f, 0.35f, 0.9f);
+                    placedHighlightView.SetCells(ToVector2IntArray(_brain.LastPlacedWorldCells), _mapping, cellSize, color);
+                }
 
                 if (gameFeelFx != null)
                 {
@@ -434,20 +448,27 @@ namespace Phase0
                 }
 
                 bool candidateValid = _brain.CandidateValid;
+                Color validColor = new Color(0.35f, 0.75f, 1f, 0.6f);
+                Color invalidColor = new Color(1f, 0.25f, 0.25f, 0.6f);
+                if (gameFeelFx != null && gameFeelFx.settings != null)
+                {
+                    validColor = gameFeelFx.settings.ghostValidOutlineColor;
+                    invalidColor = gameFeelFx.settings.ghostInvalidOutlineColor;
+                }
                 if (candidateValid)
                 {
-                    ghostView.SetColor(new Color(0.35f, 0.75f, 1f, 0.6f));
+                    ghostView.SetColor(validColor);
                 }
                 else
                 {
-                    ghostView.SetColor(new Color(1f, 0.25f, 0.25f, 0.6f));
+                    ghostView.SetColor(invalidColor);
                 }
 
                 if (gameFeelFx != null)
                 {
                     bool hasGhostCandidate = _brain.HasCandidate;
                     bool ghostIsVisible = ghostView.gameObject.activeSelf;
-                    gameFeelFx.SetInvalidHatch(_dragStarted && hasGhostCandidate && !candidateValid && ghostIsVisible);
+                    gameFeelFx.SetInvalidVisual(_dragStarted && hasGhostCandidate && !candidateValid && ghostIsVisible);
                 }
             }
         }
@@ -536,6 +557,15 @@ namespace Phase0
                 {
                     ghostView = g.GetComponent<Phase0GhostTilesView>();
                     if (ghostView == null) ghostView = g.gameObject.AddComponent<Phase0GhostTilesView>();
+                }
+            }
+
+            if (placedHighlightView == null)
+            {
+                var t = root.transform.Find("PlacedHighlight");
+                if (t != null)
+                {
+                    placedHighlightView = t.GetComponent<Phase0BoardPlacedHighlightView>();
                 }
             }
 

@@ -17,6 +17,8 @@ namespace Phase0
         public Transform visualRoot;                 // what we scale
         public UnityEngine.Object skeletonAnimation; // assign SkeletonAnimation if using Spine bones
         public Phase0GameFeelSettingsSO settings;
+        public SkeletonAnimation outlineSkeletonAnimation;
+        public Transform outlineRoot;
         [SerializeField] private bool debugForceHatch;
 
         private Vector3 _lastPos;
@@ -53,6 +55,7 @@ namespace Phase0
 
         private bool _invalidHatchActive;
         private float _hatchScale = 4f;
+        private Vector3 _outlineBaseScale = Vector3.one;
 
 #if SPINE_UNITY
         private Renderer[] _hatchRenderers;
@@ -64,6 +67,8 @@ namespace Phase0
         private static readonly int HatchWidthId = Shader.PropertyToID("_HatchWidth");
         private static readonly int HatchAngleId = Shader.PropertyToID("_HatchAngleDeg");
         private static readonly int HatchOpacityId = Shader.PropertyToID("_HatchOpacity");
+        private static readonly int HatchUseWorldSpaceId = Shader.PropertyToID("_HatchUseWorldSpace");
+        private static readonly int HatchScrollVelocityId = Shader.PropertyToID("_HatchScrollVelocity");
 #endif
         private bool _loggedForceHatch;
 
@@ -84,6 +89,8 @@ namespace Phase0
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
             ApplyHatchOverlay();
+            CacheOutlineBaseScale();
+            ApplyOutlineVisual();
         }
 
         private void Start()
@@ -104,6 +111,8 @@ namespace Phase0
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
             ApplyHatchOverlay();
+            CacheOutlineBaseScale();
+            ApplyOutlineVisual();
         }
 
         private void OnDisable()
@@ -125,10 +134,16 @@ namespace Phase0
             ApplyHatchOverlay();
         }
 
+        public void SetInvalidVisual(bool invalid)
+        {
+            SetInvalidHatch(invalid);
+            ApplyOutlineVisual(invalid);
+        }
+
         public void SetHatchScaleForCellSize(float cellSize)
         {
             float stripesPerCell = settings != null ? settings.stripesPerCell : 8f;
-            float next = settings != null ? settings.hatchScale : (cellSize > 0.0001f ? (stripesPerCell / cellSize) : 4f);
+            float next = cellSize > 0.0001f ? (stripesPerCell / cellSize) : 4f;
             SetHatchScale(next);
         }
 
@@ -487,8 +502,11 @@ namespace Phase0
             {
                 if (state == SpineState.Dragging)
                 {
-                    float mix = settings != null ? settings.dragStopMixDuration : 0f;
-                    _sa.AnimationState.SetEmptyAnimation(0, Mathf.Max(0f, mix));
+                    if (settings != null && settings.pauseSpineWhileDragging)
+                    {
+                        float mix = settings.dragStopMixDuration;
+                        _sa.AnimationState.SetEmptyAnimation(0, Mathf.Max(0f, mix));
+                    }
                 }
                 else
                 {
@@ -519,6 +537,13 @@ namespace Phase0
 
             if (_hatchBlock == null) _hatchBlock = new MaterialPropertyBlock();
             float hatchStrength = _invalidHatchActive && settings != null ? settings.hatchStrength : 0f;
+            float hatchScale = ResolveHatchScale();
+            float useWorldSpace = settings != null && settings.useWorldSpaceHatch ? 1f : 0f;
+            Vector2 hatchScrollVelocity = settings != null ? settings.hatchScrollVelocity : Vector2.zero;
+            if (hatchStrength <= 0f)
+            {
+                hatchScrollVelocity = Vector2.zero;
+            }
             for (int i = 0; i < _hatchRenderers.Length; i++)
             {
                 var renderer = _hatchRenderers[i];
@@ -526,11 +551,62 @@ namespace Phase0
                 renderer.GetPropertyBlock(_hatchBlock);
                 _hatchBlock.SetFloat(HatchStrengthId, hatchStrength);
                 _hatchBlock.SetColor(HatchColorId, settings != null ? settings.hatchColor : Color.black);
-                _hatchBlock.SetFloat(HatchScaleId, settings != null ? settings.hatchScale : _hatchScale);
+                _hatchBlock.SetFloat(HatchScaleId, hatchScale);
                 _hatchBlock.SetFloat(HatchWidthId, settings != null ? settings.hatchWidth : 0.18f);
                 _hatchBlock.SetFloat(HatchAngleId, settings != null ? settings.hatchAngleDeg : 45f);
                 _hatchBlock.SetFloat(HatchOpacityId, settings != null ? settings.hatchOpacity : 0.8f);
+                _hatchBlock.SetFloat(HatchUseWorldSpaceId, useWorldSpace);
+                _hatchBlock.SetVector(HatchScrollVelocityId, hatchScrollVelocity);
                 renderer.SetPropertyBlock(_hatchBlock);
+            }
+#endif
+        }
+
+        private float ResolveHatchScale()
+        {
+            if (_hatchScale > 0.0001f) return _hatchScale;
+            if (settings != null && settings.hatchScale > 0.0001f) return settings.hatchScale;
+            return 4f;
+        }
+
+        private void CacheOutlineBaseScale()
+        {
+            var root = ResolveOutlineRoot();
+            if (root == null) return;
+            _outlineBaseScale = root.localScale;
+        }
+
+        private Transform ResolveOutlineRoot()
+        {
+            if (outlineRoot != null) return outlineRoot;
+            return outlineSkeletonAnimation != null ? outlineSkeletonAnimation.transform : null;
+        }
+
+        private void ApplyOutlineVisual(bool? invalidOverride = null)
+        {
+            Transform root = ResolveOutlineRoot();
+            if (root == null) return;
+
+            if (settings != null && !settings.enableInvalidOutline)
+            {
+                root.gameObject.SetActive(false);
+                return;
+            }
+
+            bool invalid = invalidOverride ?? _invalidHatchActive;
+            root.gameObject.SetActive(invalid);
+            if (!invalid) return;
+
+            float scaleDelta = settings != null ? settings.outlineScaleDelta : 0f;
+            root.localScale = _outlineBaseScale * (1f + scaleDelta);
+
+#if SPINE_UNITY
+            if (outlineSkeletonAnimation != null && outlineSkeletonAnimation.Skeleton != null)
+            {
+                Color color = settings != null ? settings.outlineColor : Color.white;
+                float alpha = settings != null ? settings.outlineAlpha : 1f;
+                color.a *= alpha;
+                outlineSkeletonAnimation.Skeleton.SetColor(color);
             }
 #endif
         }

@@ -56,6 +56,13 @@ namespace Phase0
         public bool logMissingBones = true;
         public bool logBoneBindSuccess = false;
 
+        [Header("Placed Highlight")]
+        public Color placedOutlineColor = new Color(0.25f, 0.9f, 0.35f, 0.9f);
+
+        [Header("Ghost Outline")]
+        public Color ghostValidOutlineColor = new Color(0.35f, 0.75f, 1f, 0.6f);
+        public Color ghostInvalidOutlineColor = new Color(1f, 0.25f, 0.25f, 0.6f);
+
         [Header("Spine Hatch Overlay (Invalid)")]
         public bool enableInvalidHatch = true;
         public Color hatchColor = new Color(0.95f, 0.25f, 0.18f, 1f);
@@ -65,6 +72,15 @@ namespace Phase0
         [Min(0.1f)] public float hatchScale = 1.8f;
         [Min(0.1f)] public float stripesPerCell = 8f;
         [Range(0f, 1f)] public float hatchStrength = 1f;
+        public bool useWorldSpaceHatch = false;
+        public Vector2 hatchScrollVelocity = new Vector2(0.6f, -0.2f);
+
+        [Header("Invalid Outline")]
+        public bool enableInvalidOutline = true;
+        public Color outlineColor = new Color(0.95f, 0.25f, 0.18f, 1f);
+        [Range(0f, 1f)] public float outlineAlpha = 1f;
+        [Min(0f)] public float outlineScaleDelta = 0.04f;
+        [Min(0f)] public float outlineFadeDuration = 0f;
 
         [Header("Optional Extra Bones")]
         public string earLBoneName = "ear_L";

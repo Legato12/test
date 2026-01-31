@@ -29,6 +29,8 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 		_HatchWidth ("Hatch Width", Range(0.01,0.5)) = 0.18
 		_HatchAngleDeg ("Hatch Angle (Deg)", Range(0,180)) = 45
 		_HatchOpacity ("Hatch Opacity", Range(0,1)) = 0.8
+		_HatchScrollVelocity ("Hatch Scroll Velocity", Vector) = (0,0,0,0)
+		_HatchUseWorldSpace ("Hatch Use World Space", Float) = 0
 
 		[HideInInspector] _SrcBlend ("__src", Float) = 1.0
 		[HideInInspector] _DstBlend ("__dst", Float) = 0.0
@@ -96,6 +98,8 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 				uniform float _HatchWidth;
 				uniform float _HatchAngleDeg;
 				uniform float _HatchOpacity;
+				uniform float2 _HatchScrollVelocity;
+				uniform float _HatchUseWorldSpace;
 
 				struct VertexInput
 				{
@@ -114,6 +118,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 					float4 pos : SV_POSITION;
 					float2 texcoord : TEXCOORD0;
 					fixed4 color : COLOR;
+					float2 objectPos : TEXCOORD1;
 					float3 worldPos : TEXCOORD3;
 				#if defined(_FOG)
 					UNITY_FOG_COORDS(1)
@@ -136,6 +141,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 					output.pos = calculateLocalPos(input.vertex);
 					output.texcoord = calculateTextureCoord(input.texcoord);
 					output.color = calculateVertexColor(input.color);
+					output.objectPos = input.vertex.xy;
 					output.worldPos = calculateWorldPos(input.vertex).xyz;
 				#if defined(_TINT_BLACK_ON)
 					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
@@ -164,7 +170,9 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 					// World-space hatch overlay with fwidth-based anti-aliasing
 					float angleRad = _HatchAngleDeg * 0.01745329252;
 					float2 dir = float2(cos(angleRad), sin(angleRad));
-					float v = dot(input.worldPos.xy, dir) * _HatchScale;
+					float2 p = lerp(input.objectPos, input.worldPos.xy, _HatchUseWorldSpace);
+					p += _HatchScrollVelocity * _Time.y;
+					float v = dot(p, dir) * _HatchScale;
 					float stripe = abs(frac(v) - 0.5);
 					
 					// fwidth-based anti-aliasing to prevent shimmering

@@ -11,6 +11,7 @@ namespace Phase0
     {
         [Header("Visual")]
         public Sprite tileSprite;
+        public Sprite outlineSprite;
         public string sortingLayer = "Ghost";
         public int sortingOrder = 50;
 
@@ -28,7 +29,7 @@ namespace Phase0
                 go.transform.SetParent(transform, false);
 
                 var sr = go.AddComponent<SpriteRenderer>();
-                sr.sprite = tileSprite;
+                sr.sprite = outlineSprite != null ? outlineSprite : tileSprite;
                 sr.drawMode = SpriteDrawMode.Sliced;
                 sr.size = new Vector2(cellSize, cellSize);
                 sr.sortingLayerName = sortingLayer;

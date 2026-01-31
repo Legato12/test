@@ -2786,6 +2786,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1431853611}
   - component: {fileID: 1431853612}
+  - component: {fileID: 1431853613}
   m_Layer: 0
   m_Name: GhostPreview
   m_TagString: Untagged
@@ -2860,6 +2861,22 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &1431853613
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1431853610}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a3e0bb8faee388b4783a1dc8f5c7e4c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tileSprite: {fileID: 0}
+  outlineSprite: {fileID: 21300000, guid: f72f7d854dbb24b4e85f4ae3314e640c, type: 3}
+  sortingLayer: Ghost
+  sortingOrder: 50
 --- !u!1 &1432347579
 GameObject:
   m_ObjectHideFlags: 0
@@ -2915,6 +2932,7 @@ MonoBehaviour:
   followSmoothTime: 0.045
   gameFeelFx: {fileID: 578104452}
   spineOffsets: []
+  spineVisualOffset: {x: 0, y: 0}
   cellSwitchHysteresisWorld: 0.32
 --- !u!1 &1461922013
 GameObject:

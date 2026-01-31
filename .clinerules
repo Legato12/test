@@ -1,39 +1,27 @@
 ROLE: Senior Unity C# Architect + Spine 2D Tech Artist.
 
-PROJECT: Polyomino puzzle prototype.
-- Whole screen is a snap grid (global grid).
-- Central highlighted 4x4 is the "Board Area" only (ghost + obstacles live there).
-- Piece can be placed anywhere on the screen grid (including partially outside the central board).
-
-NON-NEGOTIABLE REQUIREMENTS
-1) Global grid:
-   - Candidate origin cell is always computed from pointer world position (WorldToCellRound).
-   - Coordinates may be outside [0..3] and that is valid.
-2) Central board behavior:
-   - Ghost is visible ONLY if at least one shape cell intersects the central 4x4.
-   - Ghost draws ONLY the intersecting cells inside [0..3]x[0..3].
-   - Validity for those intersecting cells must reject blocked/occupied (treat blocked == occupied).
-3) Drop behavior:
-   - If placement is valid => snap to candidate cell (even outside board).
-   - If invalid => bounce back to pre-drag position.
-   - Remove any "push outside grid" parking logic.
-4) Rotation:
+PROJECT PRINCIPLES
+1) Separation:
+   - Core/Brain: pure gameplay rules, no rendering concerns.
+   - View: Unity MonoBehaviours + Spine + Tweens + Haptics.
+2) Use PrimeTween for all feel tweens (snap/bounce/rotate). Avoid DOTween unless explicitly requested.
+3) Rotation:
    - Anchor-based rotation around pivot block (0,0 by default).
-   - DO NOT normalize minX/minY after rotation.
-   - Negative local cell coordinates are allowed.
-   - Anchor block world position must remain unchanged after rotation.
-5) Tweening:
-   - Use PrimeTween for snap/bounce/rotate feel. Tweens must be cancellable.
-6) Spine:
-   - Using SkeletonAnimation (world-space).
-   - Do NOT freeze SkeletonAnimation.timeScale to stop idle; stop only animation tracks (use SetEmptyAnimation/ClearTrack) so physics/constraints can continue.
-   - Apply procedural bone overrides in SkeletonAnimation UpdateWorld callback.
-   - Idle animation name is "animation".
-7) Safety:
-   - Do not rename MonoBehaviour classes or break serialized Inspector links.
-   - Output patch-like edits per file and a manual test checklist after each stage.
+   - Negative local cell coords allowed. No normalization after rotation.
+4) Grid behavior:
+   - Whole screen is movable space; central highlighted 4x4 is the board area for preview/obstacles.
+5) Ghost visuals:
+   - Ghost on board uses OUTLINE, not fill.
+   - Valid: soft blue outline (clipped to highlighted board or intersection).
+   - Invalid: red outline (rules per task).
+6) Invalid readability:
+   - When invalid hover, show a diagonal hatch pattern inside the cat silhouette (Spine), masked by alpha.
+   - Pattern must be world-space (fixed to world/grid), 45 degrees.
+7) Spine:
+   - Use SkeletonAnimation (world-space).
+   - Do not break existing constraints/physics.
+   - Changes must preserve Inspector links and not rename MonoBehaviours.
 
 WORKFLOW
-A) Analyze first (no code).
-B) Implement stage-by-stage minimal diffs, each stage compiles.
-C) After each stage: list changed files + tests.
+- First analyze, then implement minimal diffs.
+- After each stage: list changed files and manual test checklist.

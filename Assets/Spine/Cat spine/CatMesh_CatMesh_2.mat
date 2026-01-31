@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: CatMesh_CatMesh_2
-  m_Shader: {fileID: 4800000, guid: 64005298b9a80bb4899eabd5140dc4a8, type: 3}
+  m_Shader: {fileID: 4800000, guid: 93c2138b4c272b94696045a6f9be4e3d, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
@@ -49,6 +49,11 @@ Material:
     - _DoubleSidedLighting: 0
     - _DstBlend: 10
     - _Fill: 0
+    - _HatchAngleDeg: 45
+    - _HatchOpacity: 0.8
+    - _HatchScale: 4
+    - _HatchStrength: 0
+    - _HatchWidth: 0.18
     - _Hue: 0
     - _LightAffectsAdditive: 0
     - _OutlineMipLevel: 0
@@ -71,6 +76,7 @@ Material:
     m_Colors:
     - _Black: {r: 0, g: 0, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _HatchColor: {r: 0, g: 0, b: 0, a: 1}
     - _OutlineColor: {r: 1, g: 1, b: 0, a: 1}
     - _OverlayColor: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

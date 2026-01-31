@@ -56,6 +56,15 @@ namespace Phase0
         public bool logMissingBones = true;
         public bool logBoneBindSuccess = false;
 
+        [Header("Spine Hatch Overlay (Invalid)")]
+        public bool enableInvalidHatch = true;
+        public Color hatchColor = new Color(0.15f, 0.15f, 0.15f, 1f);
+        [Range(0f, 1f)] public float hatchOpacity = 0.8f;
+        [Range(0.01f, 0.5f)] public float hatchWidth = 0.18f;
+        [Range(0f, 180f)] public float hatchAngleDeg = 45f;
+        [Min(0.1f)] public float stripesPerCell = 8f;
+        [Range(0f, 1f)] public float hatchStrength = 1f;
+
         [Header("Optional Extra Bones")]
         public string earLBoneName = "ear_L";
         public string earRBoneName = "ear_R";

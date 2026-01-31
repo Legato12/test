@@ -135,6 +135,11 @@ namespace Phase0
                 ghostView.EnsureTiles(_brain.LocalCells.Length, sceneConfig != null ? sceneConfig.cellSize : 1f);
                 ghostView.SetVisible(false);
             }
+
+            if (gameFeelFx != null && sceneConfig != null)
+            {
+                gameFeelFx.SetHatchScaleForCellSize(sceneConfig.cellSize);
+            }
         }
 
         // Update loop: input -> core brain -> view updates (FX/ghost).
@@ -189,6 +194,7 @@ namespace Phase0
             // Candidate init
             _brain.ResetCandidate();
             if (ghostView != null) ghostView.SetVisible(false);
+            if (gameFeelFx != null) gameFeelFx.SetInvalidHatch(false);
         }
 
         private void OnPointerHeld(PointerState pointer)
@@ -244,6 +250,7 @@ namespace Phase0
             {
                 gameFeelFx.SetDragging(false);
             }
+            if (gameFeelFx != null) gameFeelFx.SetInvalidHatch(false);
 
             if (wasTap)
             {
@@ -421,13 +428,26 @@ namespace Phase0
                 ghostView.EnsureTiles(cellsToDraw.Length, cellSize);
                 ghostView.ApplyLocalCells(cellsToDraw, _mapping.cellStep.x, _mapping.cellStep.y);
 
-                if (_brain.CandidateValid)
+                if (gameFeelFx != null)
                 {
-                    ghostView.SetColor(new Color(0.25f, 1f, 0.55f, 0.35f));
+                    gameFeelFx.SetHatchScaleForCellSize(cellSize);
+                }
+
+                bool candidateValid = _brain.CandidateValid;
+                if (candidateValid)
+                {
+                    ghostView.SetColor(new Color(0.35f, 0.75f, 1f, 0.6f));
                 }
                 else
                 {
-                    ghostView.SetColor(new Color(1f, 0.2f, 0.25f, 0.35f));
+                    ghostView.SetColor(new Color(1f, 0.25f, 0.25f, 0.6f));
+                }
+
+                if (gameFeelFx != null)
+                {
+                    bool hasGhostCandidate = _brain.HasCandidate;
+                    bool ghostIsVisible = ghostView.gameObject.activeSelf;
+                    gameFeelFx.SetInvalidHatch(_dragStarted && hasGhostCandidate && !candidateValid && ghostIsVisible);
                 }
             }
         }

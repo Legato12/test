@@ -50,6 +50,21 @@ namespace Phase0
         private bool _loggedMissingTail;
         private bool _loggedMissingMouth;
 
+        private bool _invalidHatchActive;
+        private float _hatchScale = 4f;
+
+#if SPINE_UNITY
+        private MeshRenderer _skeletonRenderer;
+        private MaterialPropertyBlock _hatchBlock;
+
+        private static readonly int HatchStrengthId = Shader.PropertyToID("_HatchStrength");
+        private static readonly int HatchColorId = Shader.PropertyToID("_HatchColor");
+        private static readonly int HatchScaleId = Shader.PropertyToID("_HatchScale");
+        private static readonly int HatchWidthId = Shader.PropertyToID("_HatchWidth");
+        private static readonly int HatchAngleId = Shader.PropertyToID("_HatchAngleDeg");
+        private static readonly int HatchOpacityId = Shader.PropertyToID("_HatchOpacity");
+#endif
+
         private enum SpineState
         {
             Idle,
@@ -66,6 +81,7 @@ namespace Phase0
             BindSkeletonEvents();
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
+            ApplyHatchOverlay();
         }
 
         private void OnEnable()
@@ -78,6 +94,7 @@ namespace Phase0
             BindSkeletonEvents();
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
+            ApplyHatchOverlay();
         }
 
         private void OnDisable()
@@ -89,6 +106,29 @@ namespace Phase0
         {
             _dragging = dragging;
             ApplySpineState(dragging ? SpineState.Dragging : SpineState.Idle);
+        }
+
+        public void SetInvalidHatch(bool enabled)
+        {
+            if (settings != null && !settings.enableInvalidHatch) enabled = false;
+            if (_invalidHatchActive == enabled) return;
+            _invalidHatchActive = enabled;
+            ApplyHatchOverlay();
+        }
+
+        public void SetHatchScaleForCellSize(float cellSize)
+        {
+            float stripesPerCell = settings != null ? settings.stripesPerCell : 8f;
+            float next = cellSize > 0.0001f ? (stripesPerCell / cellSize) : 4f;
+            SetHatchScale(next);
+        }
+
+        private void SetHatchScale(float worldScale)
+        {
+            float next = Mathf.Max(0.01f, worldScale);
+            if (Mathf.Abs(next - _hatchScale) <= 0.0001f) return;
+            _hatchScale = next;
+            ApplyHatchOverlay();
         }
 
         // Call every frame from controller with piece root position (the thing you move)
@@ -457,6 +497,27 @@ namespace Phase0
             }
 
             TryBindBones(logSuccess: true);
+        }
+
+        private void ApplyHatchOverlay()
+        {
+#if SPINE_UNITY
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+            if (_skeletonRenderer == null) _skeletonRenderer = _sa.GetComponent<MeshRenderer>();
+            if (_skeletonRenderer == null) return;
+
+            if (_hatchBlock == null) _hatchBlock = new MaterialPropertyBlock();
+            _skeletonRenderer.GetPropertyBlock(_hatchBlock);
+            float hatchStrength = _invalidHatchActive && settings != null ? settings.hatchStrength : 0f;
+            _hatchBlock.SetFloat(HatchStrengthId, hatchStrength);
+            _hatchBlock.SetColor(HatchColorId, settings != null ? settings.hatchColor : Color.black);
+            _hatchBlock.SetFloat(HatchScaleId, _hatchScale);
+            _hatchBlock.SetFloat(HatchWidthId, settings != null ? settings.hatchWidth : 0.18f);
+            _hatchBlock.SetFloat(HatchAngleId, settings != null ? settings.hatchAngleDeg : 45f);
+            _hatchBlock.SetFloat(HatchOpacityId, settings != null ? settings.hatchOpacity : 0.8f);
+            _skeletonRenderer.SetPropertyBlock(_hatchBlock);
+#endif
         }
 
         private void TweenScale(Vector3 to, float duration, Ease ease)

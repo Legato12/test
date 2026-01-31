@@ -137,6 +137,16 @@ namespace Phase0
                 ghostView.SetVisible(false);
             }
 
+            if (placedHighlightView != null)
+            {
+                if (placedHighlightView.outlineSprite == null)
+                {
+                    placedHighlightView.outlineSprite = ResolveDefaultOutlineSprite();
+                }
+
+                placedHighlightView.Clear();
+            }
+
             if (gameFeelFx != null && sceneConfig != null)
             {
                 gameFeelFx.SetHatchScaleForCellSize(sceneConfig.cellSize);
@@ -306,14 +316,7 @@ namespace Phase0
                 // Mark occupied cells
                 _lastPlacedWorldCells = _brain.PlaceCandidate();
 
-                if (placedHighlightView != null && _brain.IsPlacedOnBoard && _brain.LastPlacedWorldCells != null)
-                {
-                    var cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
-                    var color = gameFeelFx != null && gameFeelFx.settings != null
-                        ? gameFeelFx.settings.placedOutlineColor
-                        : new Color(0.25f, 0.9f, 0.35f, 0.9f);
-                    placedHighlightView.SetCells(ToVector2IntArray(_brain.LastPlacedWorldCells), _mapping, cellSize, color);
-                }
+                UpdatePlacedHighlight();
 
                 if (gameFeelFx != null)
                 {
@@ -334,9 +337,30 @@ namespace Phase0
 
                 // Re-occupy original cells if it was placed before
                 _brain.RestorePlacementIfAny();
+                UpdatePlacedHighlight();
             }
 
             if (ghostView != null) ghostView.SetVisible(false);
+        }
+
+        private void UpdatePlacedHighlight()
+        {
+            if (placedHighlightView == null)
+            {
+                return;
+            }
+
+            if (!_brain.IsPlacedOnBoard || _brain.LastPlacedWorldCells == null || _brain.LastPlacedWorldCells.Length == 0)
+            {
+                placedHighlightView.Clear();
+                return;
+            }
+
+            var cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
+            var color = gameFeelFx != null && gameFeelFx.settings != null
+                ? gameFeelFx.settings.placedOutlineColor
+                : new Color(0.25f, 0.9f, 0.35f, 0.9f);
+            placedHighlightView.SetCells(ToVector2IntArray(_brain.LastPlacedWorldCells), _mapping, cellSize, color);
         }
 
         private void PlaySnapTween(Vector3 from, Vector3 to, bool isValid)
@@ -569,6 +593,18 @@ namespace Phase0
                 }
             }
 
+            if (placedHighlightView == null)
+            {
+                var go = new GameObject("PlacedHighlight");
+                go.transform.SetParent(root.transform, false);
+                placedHighlightView = go.AddComponent<Phase0BoardPlacedHighlightView>();
+            }
+
+            if (placedHighlightView != null && placedHighlightView.outlineSprite == null)
+            {
+                placedHighlightView.outlineSprite = ResolveDefaultOutlineSprite();
+            }
+
             // Ensure piece has placeholder view component
             if (activePieceRoot != null)
             {
@@ -576,6 +612,20 @@ namespace Phase0
                 if (pv == null) pv = activePieceRoot.gameObject.AddComponent<Phase0PieceTilesView>();
                 pv.AutoCollectTiles();
             }
+        }
+
+        private Sprite ResolveDefaultOutlineSprite()
+        {
+            if (ghostView != null && ghostView.outlineSprite != null) return ghostView.outlineSprite;
+            if (ghostView != null && ghostView.tileSprite != null) return ghostView.tileSprite;
+
+            if (activePieceRoot != null)
+            {
+                var anyTile = activePieceRoot.GetComponentsInChildren<SpriteRenderer>().FirstOrDefault();
+                if (anyTile != null) return anyTile.sprite;
+            }
+
+            return null;
         }
 
         private static bool TryParseCellName(string name, out Vector2Int cell)

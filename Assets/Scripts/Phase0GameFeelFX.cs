@@ -54,8 +54,8 @@ namespace Phase0
         private bool _loggedMissingMouth;
 
         private bool _invalidHatchActive;
-        private float _hatchScale = 4f;
-        private Vector3 _outlineBaseScale = Vector3.one;
+        private bool _invalidVisualActive;
+        private float _hatchScale = -1f;
 
 #if SPINE_UNITY
         private Renderer[] _hatchRenderers;
@@ -69,6 +69,9 @@ namespace Phase0
         private static readonly int HatchOpacityId = Shader.PropertyToID("_HatchOpacity");
         private static readonly int HatchUseWorldSpaceId = Shader.PropertyToID("_HatchUseWorldSpace");
         private static readonly int HatchScrollVelocityId = Shader.PropertyToID("_HatchScrollVelocity");
+        private static readonly int OutlineEnabledId = Shader.PropertyToID("_OutlineEnabled");
+        private static readonly int OutlineColorId = Shader.PropertyToID("_OutlineColor");
+        private static readonly int OutlineThicknessId = Shader.PropertyToID("_OutlineThicknessPx");
 #endif
         private bool _loggedForceHatch;
 
@@ -89,8 +92,6 @@ namespace Phase0
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
             ApplyHatchOverlay();
-            CacheOutlineBaseScale();
-            ApplyOutlineVisual();
         }
 
         private void Start()
@@ -111,8 +112,6 @@ namespace Phase0
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
             ApplyHatchOverlay();
-            CacheOutlineBaseScale();
-            ApplyOutlineVisual();
         }
 
         private void OnDisable()
@@ -136,8 +135,9 @@ namespace Phase0
 
         public void SetInvalidVisual(bool invalid)
         {
+            _invalidVisualActive = invalid;
             SetInvalidHatch(invalid);
-            ApplyOutlineVisual(invalid);
+            ApplyHatchOverlay();
         }
 
         public void SetHatchScaleForCellSize(float cellSize)
@@ -544,6 +544,11 @@ namespace Phase0
             {
                 hatchScrollVelocity = Vector2.zero;
             }
+
+            bool outlineEnabled = _invalidVisualActive && settings != null && (settings.invalidOutlineEnabled || settings.enableInvalidOutline);
+            Color outlineColor = settings != null ? settings.outlineColor : Color.red;
+            float outlineThickness = settings != null ? Mathf.Max(0f, settings.outlineThicknessPx) : 0f;
+
             for (int i = 0; i < _hatchRenderers.Length; i++)
             {
                 var renderer = _hatchRenderers[i];
@@ -557,6 +562,9 @@ namespace Phase0
                 _hatchBlock.SetFloat(HatchOpacityId, settings != null ? settings.hatchOpacity : 0.8f);
                 _hatchBlock.SetFloat(HatchUseWorldSpaceId, useWorldSpace);
                 _hatchBlock.SetVector(HatchScrollVelocityId, hatchScrollVelocity);
+                _hatchBlock.SetFloat(OutlineEnabledId, outlineEnabled ? 1f : 0f);
+                _hatchBlock.SetColor(OutlineColorId, outlineColor);
+                _hatchBlock.SetFloat(OutlineThicknessId, outlineThickness);
                 renderer.SetPropertyBlock(_hatchBlock);
             }
 #endif
@@ -569,46 +577,11 @@ namespace Phase0
             return 4f;
         }
 
-        private void CacheOutlineBaseScale()
-        {
-            var root = ResolveOutlineRoot();
-            if (root == null) return;
-            _outlineBaseScale = root.localScale;
-        }
-
-        private Transform ResolveOutlineRoot()
-        {
-            if (outlineRoot != null) return outlineRoot;
-            return outlineSkeletonAnimation != null ? outlineSkeletonAnimation.transform : null;
-        }
-
         private void ApplyOutlineVisual(bool? invalidOverride = null)
         {
-            Transform root = ResolveOutlineRoot();
-            if (root == null) return;
-
-            if (settings != null && !settings.enableInvalidOutline)
-            {
-                root.gameObject.SetActive(false);
-                return;
-            }
-
-            bool invalid = invalidOverride ?? _invalidHatchActive;
-            root.gameObject.SetActive(invalid);
-            if (!invalid) return;
-
-            float scaleDelta = settings != null ? settings.outlineScaleDelta : 0f;
-            root.localScale = _outlineBaseScale * (1f + scaleDelta);
-
-#if SPINE_UNITY
-            if (outlineSkeletonAnimation != null && outlineSkeletonAnimation.Skeleton != null)
-            {
-                Color color = settings != null ? settings.outlineColor : Color.white;
-                float alpha = settings != null ? settings.outlineAlpha : 1f;
-                color.a *= alpha;
-                outlineSkeletonAnimation.Skeleton.SetColor(color);
-            }
-#endif
+            // Outline visuals are now handled by shader overlay.
+            // OutlineRoot/OutlineSkeletonAnimation fields are kept for backward-compatible inspector data,
+            // but are intentionally unused to avoid disabling SpineAnchor.
         }
 
 #if SPINE_UNITY
@@ -616,13 +589,13 @@ namespace Phase0
         {
             if (_sa == null) _sa = ResolveSkeletonAnimation();
             if (_sa == null) return;
-            var allRenderers = _sa.GetComponentsInChildren<Renderer>(true);
-            if (allRenderers == null || allRenderers.Length == 0) return;
+            var renderers = _sa.GetComponents<Renderer>();
+            if (renderers == null || renderers.Length == 0) return;
 
-            var filtered = new System.Collections.Generic.List<Renderer>(allRenderers.Length);
-            for (int i = 0; i < allRenderers.Length; i++)
+            var filtered = new System.Collections.Generic.List<Renderer>(renderers.Length);
+            for (int i = 0; i < renderers.Length; i++)
             {
-                var r = allRenderers[i];
+                var r = renderers[i];
                 if (r == null) continue;
                 if (r is SpriteRenderer) continue;
                 filtered.Add(r);
@@ -679,6 +652,9 @@ namespace Phase0
                 _hatchBlock.SetFloat(HatchOpacityId, 1f);
                 _hatchBlock.SetFloat(HatchWidthId, 0.25f);
                 _hatchBlock.SetFloat(HatchScaleId, 3f);
+                _hatchBlock.SetFloat(OutlineEnabledId, 1f);
+                _hatchBlock.SetColor(OutlineColorId, Color.red);
+                _hatchBlock.SetFloat(OutlineThicknessId, 3f);
                 renderer.SetPropertyBlock(_hatchBlock);
             }
 

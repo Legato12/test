@@ -1019,6 +1019,8 @@ MonoBehaviour:
   visualRoot: {fileID: 578104451}
   skeletonAnimation: {fileID: 1581661057}
   settings: {fileID: 11400000, guid: 4aa7bcc8b230a8546a19fb0f426cffa1, type: 2}
+  outlineSkeletonAnimation: {fileID: 0}
+  outlineRoot: {fileID: 0}
   debugForceHatch: 0
 --- !u!1 &606946778
 GameObject:
@@ -2879,6 +2881,7 @@ MonoBehaviour:
   ghostView: {fileID: 0}
   followSmoothTime: 0.045
   gameFeelFx: {fileID: 578104452}
+  placedHighlightView: {fileID: 0}
   spineOffsets: []
   spineVisualOffset: {x: 0, y: 0}
   cellSwitchHysteresisWorld: 0.32

@@ -76,8 +76,11 @@ namespace Phase0
         public Vector2 hatchScrollVelocity = new Vector2(0.6f, -0.2f);
 
         [Header("Invalid Outline")]
-        public bool enableInvalidOutline = true;
+        public bool invalidOutlineEnabled = true;
         public Color outlineColor = new Color(0.95f, 0.25f, 0.18f, 1f);
+        [Min(0f)] public float outlineThicknessPx = 3f;
+        [Header("Invalid Outline (Legacy Skeleton)")]
+        public bool enableInvalidOutline = true;
         [Range(0f, 1f)] public float outlineAlpha = 1f;
         [Min(0f)] public float outlineScaleDelta = 0.04f;
         [Min(0f)] public float outlineFadeDuration = 0f;

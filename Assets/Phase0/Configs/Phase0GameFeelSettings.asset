@@ -43,14 +43,26 @@ MonoBehaviour:
   idleBreathSpeed: 1.5
   logMissingBones: 1
   logBoneBindSuccess: 0
+  placedOutlineColor: {r: 0.25, g: 0.9, b: 0.35, a: 0.20392157}
+  ghostValidOutlineColor: {r: 0.35, g: 0.75, b: 1, a: 0.2901961}
+  ghostInvalidOutlineColor: {r: 1, g: 0.25, b: 0.25, a: 0.28235295}
   enableInvalidHatch: 1
   hatchColor: {r: 0.95, g: 0.25, b: 0.18, a: 1}
-  hatchOpacity: 0.9
-  hatchWidth: 0.24
+  hatchOpacity: 0.615
+  hatchWidth: 0.5
   hatchAngleDeg: 45
-  hatchScale: 1.8
-  stripesPerCell: 8
+  hatchScale: 8.68
+  stripesPerCell: 0.95
   hatchStrength: 1
+  useWorldSpaceHatch: 0
+  hatchScrollVelocity: {x: 0.6, y: -0.2}
+  invalidOutlineEnabled: 1
+  outlineColor: {r: 0.95, g: 0.25, b: 0.18, a: 1}
+  outlineThicknessPx: 6
+  enableInvalidOutline: 1
+  outlineAlpha: 1
+  outlineScaleDelta: 0.04
+  outlineFadeDuration: 0
   earLBoneName: ear_L
   earRBoneName: ear_R
   tailBoneName: Tail

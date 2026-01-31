@@ -32,6 +32,10 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 		_HatchScrollVelocity ("Hatch Scroll Velocity", Vector) = (0,0,0,0)
 		_HatchUseWorldSpace ("Hatch Use World Space", Float) = 0
 
+		_OutlineEnabled ("Outline Enabled", Float) = 0
+		_OutlineColor ("Outline Color", Color) = (1,0,0,1)
+		_OutlineThicknessPx ("Outline Thickness (px)", Range(0,12)) = 3
+
 		[HideInInspector] _SrcBlend ("__src", Float) = 1.0
 		[HideInInspector] _DstBlend ("__dst", Float) = 0.0
 		[HideInInspector] _RenderQueue ("__queue", Float) = 0.0
@@ -39,11 +43,9 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 		[HideInInspector] _StencilRef("Stencil Reference", Float) = 1.0
 		[HideInInspector][Enum(UnityEngine.Rendering.CompareFunction)] _StencilComp("Stencil Comparison", Float) = 8 // Set to Always as default
 
-		// Outline properties are drawn via custom editor.
+		// Legacy outline properties (unused by this shader path).
 		[HideInInspector] _OutlineWidth("Outline Width", Range(0,8)) = 3.0
 		[HideInInspector][MaterialToggle(_USE_SCREENSPACE_OUTLINE_WIDTH)] _UseScreenSpaceOutlineWidth("Width in Screen Space", Float) = 0
-		[HideInInspector] _OutlineColor("Outline Color", Color) = (1,1,0,1)
-		[HideInInspector][MaterialToggle(_OUTLINE_FILL_INSIDE)]_Fill("Fill", Float) = 0
 		[HideInInspector] _OutlineReferenceTexWidth("Reference Texture Width", Int) = 1024
 		[HideInInspector] _ThresholdEnd("Outline Threshold", Range(0,1)) = 0.25
 		[HideInInspector] _OutlineSmoothness("Outline Smoothness", Range(0,1)) = 1.0
@@ -61,6 +63,108 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 			Ref[_StencilRef]
 			Comp[_StencilComp]
 			Pass Keep
+		}
+
+		Pass
+		{
+			Name "Outline"
+
+			Blend [_SrcBlend] [_DstBlend]
+			Lighting Off
+			ZWrite [_ZWrite]
+			ZTest LEqual
+			Cull [_Cull]
+			Lighting Off
+
+			CGPROGRAM
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = calculateLocalPos(input.vertex);
+					float4 centerClip = UnityObjectToClipPos(float4(0, 0, 0, 1));
+					float2 dir = clipPos.xy - centerClip.xy;
+					float len = max(length(dir), 1e-5);
+					float2 dirN = dir / len;
+					float2 offsetNDC = dirN * _OutlineThicknessPx * float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += offsetNDC * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
 		}
 
 		Pass
@@ -167,7 +271,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed4 pixel = calculatePixel(texureColor, input.color);
 
-					// World-space hatch overlay with fwidth-based anti-aliasing
+					// Hatch overlay with world/object space control and time-based scrolling
 					float angleRad = _HatchAngleDeg * 0.01745329252;
 					float2 dir = float2(cos(angleRad), sin(angleRad));
 					float2 p = lerp(input.objectPos, input.worldPos.xy, _HatchUseWorldSpace);

@@ -139,9 +139,18 @@ namespace Phase0
 
         public void SetInvalidVisual(bool invalid)
         {
+            bool previousVisual = _invalidVisualActive;
+            bool previousHatch = _invalidHatchActive;
             _invalidVisualActive = invalid;
-            SetInvalidHatch(invalid);
-            ApplyHatchOverlay();
+
+            bool hatchEnabled = invalid;
+            if (settings != null && !settings.enableInvalidHatch) hatchEnabled = false;
+            _invalidHatchActive = hatchEnabled;
+
+            if (previousVisual != _invalidVisualActive || previousHatch != _invalidHatchActive)
+            {
+                ApplyHatchOverlay();
+            }
 #if SPINE_UNITY
             if (_invalidVisualActive)
             {

@@ -68,7 +68,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 		Pass
 		{
-			Name "Outline"
+			Name "Outline_PosX"
 
 			Blend SrcAlpha OneMinusSrcAlpha
 			Lighting Off
@@ -78,6 +78,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 			Lighting Off
 
 			CGPROGRAM
+				#define OUTLINE_DIR float2(1, 0)
 				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
 				#pragma shader_feature _ALPHA_CLIP
 				#pragma shader_feature _TEXTURE_BLEND
@@ -99,7 +100,6 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 				uniform float _OutlineEnabled;
 				uniform float4 _OutlineColor;
 				uniform float _OutlineThicknessPx;
-				uniform float4 _OutlineCenterWS;
 
 				struct VertexInput
 				{
@@ -132,18 +132,695 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
 					float4 clipPos = UnityObjectToClipPos(input.vertex);
-					float4 centerClip = UnityObjectToClipPos(float4(0, 0, 0, 1));
-					if (_OutlineCenterWS.w > 0.5)
-					{
-						centerClip = UnityWorldToClipPos(_OutlineCenterWS.xyz);
-					}
-					float2 a = clipPos.xy / clipPos.w;
-					float2 c = centerClip.xy / centerClip.w;
-					float2 dir = a - c;
-					float len = length(dir);
-					float2 dirN = (len < 1e-5) ? float2(0, 1) : (dir / len);
 					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
-					clipPos.xy += dirN * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
+		}
+
+		Pass
+		{
+			Name "Outline_NegX"
+
+			Blend SrcAlpha OneMinusSrcAlpha
+			Lighting Off
+			ZWrite Off
+			ZTest LEqual
+			Cull Off
+			Lighting Off
+
+			CGPROGRAM
+				#define OUTLINE_DIR float2(-1, 0)
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
+		}
+
+		Pass
+		{
+			Name "Outline_PosY"
+
+			Blend SrcAlpha OneMinusSrcAlpha
+			Lighting Off
+			ZWrite Off
+			ZTest LEqual
+			Cull Off
+			Lighting Off
+
+			CGPROGRAM
+				#define OUTLINE_DIR float2(0, 1)
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
+		}
+
+		Pass
+		{
+			Name "Outline_NegY"
+
+			Blend SrcAlpha OneMinusSrcAlpha
+			Lighting Off
+			ZWrite Off
+			ZTest LEqual
+			Cull Off
+			Lighting Off
+
+			CGPROGRAM
+				#define OUTLINE_DIR float2(0, -1)
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
+		}
+
+		Pass
+		{
+			Name "Outline_PosXPosY"
+
+			Blend SrcAlpha OneMinusSrcAlpha
+			Lighting Off
+			ZWrite Off
+			ZTest LEqual
+			Cull Off
+			Lighting Off
+
+			CGPROGRAM
+				#define OUTLINE_DIR float2(1, 1)
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
+		}
+
+		Pass
+		{
+			Name "Outline_PosXNegY"
+
+			Blend SrcAlpha OneMinusSrcAlpha
+			Lighting Off
+			ZWrite Off
+			ZTest LEqual
+			Cull Off
+			Lighting Off
+
+			CGPROGRAM
+				#define OUTLINE_DIR float2(1, -1)
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
+		}
+
+		Pass
+		{
+			Name "Outline_NegXPosY"
+
+			Blend SrcAlpha OneMinusSrcAlpha
+			Lighting Off
+			ZWrite Off
+			ZTest LEqual
+			Cull Off
+			Lighting Off
+
+			CGPROGRAM
+				#define OUTLINE_DIR float2(-1, 1)
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
+
+					output.pos = clipPos;
+					output.texcoord = calculateTextureCoord(input.texcoord);
+					output.color = calculateVertexColor(input.color);
+				#if defined(_TINT_BLACK_ON)
+					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
+						+ (_Black.rgb * input.color.a);
+				#endif
+
+					return output;
+				}
+
+				fixed4 fragOutline(VertexOutput input) : SV_Target
+				{
+					if (_OutlineEnabled <= 0.5)
+					{
+						discard;
+					}
+
+					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
+					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
+					ALPHA_CLIP(texureColor, input.color)
+
+					fixed alpha = texureColor.a * input.color.a;
+					fixed4 outColor = _OutlineColor;
+					outColor.a *= alpha;
+					return outColor;
+				}
+			ENDCG
+		}
+
+		Pass
+		{
+			Name "Outline_NegXNegY"
+
+			Blend SrcAlpha OneMinusSrcAlpha
+			Lighting Off
+			ZWrite Off
+			ZTest LEqual
+			Cull Off
+			Lighting Off
+
+			CGPROGRAM
+				#define OUTLINE_DIR float2(-1, -1)
+				#pragma shader_feature _ _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON _ALPHAPREMULTIPLY_VERTEX_ONLY _ADDITIVEBLEND _ADDITIVEBLEND_SOFT _MULTIPLYBLEND _MULTIPLYBLEND_X2
+				#pragma shader_feature _ALPHA_CLIP
+				#pragma shader_feature _TEXTURE_BLEND
+				#pragma shader_feature _COLOR_ADJUST
+				#pragma shader_feature _FOG
+				#pragma shader_feature _TINT_BLACK_ON
+
+				#pragma fragmentoption ARB_precision_hint_fastest
+				#pragma multi_compile_fog
+				#pragma multi_compile _ PIXELSNAP_ON
+				#pragma vertex vertOutline
+				#pragma fragment fragOutline
+
+				#include "UnityCG.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/Sprite/CGIncludes/ShaderShared.cginc"
+				#include "Assets/Spine/Runtime/spine-unity/Shaders/CGIncludes/Spine-Skeleton-Tint-Common.cginc"
+
+				uniform float _OutlineEnabled;
+				uniform float4 _OutlineColor;
+				uniform float _OutlineThicknessPx;
+
+				struct VertexInput
+				{
+					float4 vertex : POSITION;
+					float4 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float2 tintBlackRG : TEXCOORD1;
+					float2 tintBlackB : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_INPUT_INSTANCE_ID
+				};
+
+				struct VertexOutput
+				{
+					float4 pos : SV_POSITION;
+					float2 texcoord : TEXCOORD0;
+					fixed4 color : COLOR;
+				#if defined(_TINT_BLACK_ON)
+					float3 darkColor : TEXCOORD2;
+				#endif
+					UNITY_VERTEX_OUTPUT_STEREO
+				};
+
+				VertexOutput vertOutline(VertexInput input)
+				{
+					VertexOutput output;
+
+					UNITY_SETUP_INSTANCE_ID(input);
+					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+					float4 clipPos = UnityObjectToClipPos(input.vertex);
+					float2 pixelToNDC = float2(2.0 / _ScreenParams.x, 2.0 / _ScreenParams.y);
+					clipPos.xy += OUTLINE_DIR * (_OutlineThicknessPx * pixelToNDC) * clipPos.w;
 
 					output.pos = clipPos;
 					output.texcoord = calculateTextureCoord(input.texcoord);

@@ -63,7 +63,7 @@ MonoBehaviour:
   outlineAlpha: 1
   outlineScaleDelta: 0.04
   outlineFadeDuration: 0
-  earLBoneName: ear_L
-  earRBoneName: ear_R
-  tailBoneName: Tail
-  mouthBoneName: mouth
+  earLBoneName: Ear_L1
+  earRBoneName: Ear_R1
+  tailBoneName: Tail1
+  mouthBoneName: Mouth

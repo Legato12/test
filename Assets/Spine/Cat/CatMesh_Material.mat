@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: CatMesh_CatMesh
+  m_Name: CatMesh_Material
   m_Shader: {fileID: 4800000, guid: 93c2138b4c272b94696045a6f9be4e3d, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -21,9 +21,9 @@ Material:
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: 3000
   stringTagMap:
-    AlphaDepth: False
+    AlphaDepth: true
     IGNOREPROJECTOR: true
-    RenderType: Sprite
+    RenderType: Transparent
   disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
@@ -34,7 +34,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 911ea63c89d03af4ca9d9211b4b631a4, type: 3}
+        m_Texture: {fileID: 2800000, guid: 23346b159558f2f418bed00c0e726ee5, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
@@ -43,25 +43,25 @@ Material:
     - _BlendAmount: 0
     - _Brightness: 1
     - _Cull: 0
-    - _CustomRenderQueue: 3000
+    - _CustomRenderQueue: 0
     - _Cutoff: 0.1
-    - _DarkColorAlphaAdditive: 0
-    - _DoubleSidedLighting: 0
     - _DstBlend: 10
     - _Fill: 0
     - _HatchAngleDeg: 45
     - _HatchOpacity: 0.8
-    - _HatchScale: 4
+    - _HatchScale: 8
     - _HatchStrength: 0
+    - _HatchUseWorldSpace: 0
     - _HatchWidth: 0.18
     - _Hue: 0
-    - _LightAffectsAdditive: 0
+    - _OutlineEnabled: 0
     - _OutlineMipLevel: 0
     - _OutlineOpaqueAlpha: 1
     - _OutlineReferenceTexWidth: 1024
     - _OutlineSmoothness: 1
+    - _OutlineThicknessPx: 3
     - _OutlineWidth: 3
-    - _RenderQueue: 3000
+    - _RenderQueue: 0
     - _Saturation: 1
     - _ShadowAlphaCutoff: 0.1
     - _SrcBlend: 1
@@ -77,6 +77,8 @@ Material:
     - _Black: {r: 0, g: 0, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _HatchColor: {r: 0, g: 0, b: 0, a: 1}
+    - _HatchScrollVelocity: {r: 0, g: 0, b: 0, a: 0}
+    - _OutlineCenterWS: {r: 0, g: 0, b: 0, a: 0}
     - _OutlineColor: {r: 1, g: 1, b: 0, a: 1}
     - _OverlayColor: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

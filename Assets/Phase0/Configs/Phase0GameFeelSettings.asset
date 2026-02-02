@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 054b291ddabadd443bf735f96f484c49, type: 3}
   m_Name: Phase0GameFeelSettings
   m_EditorClassIdentifier: 
-  quickScaleDuration: 0.08
+  quickScaleDuration: 0.15
   returnDuration: 0.12
-  pickupScale: {x: 1.06, y: 0.94}
+  pickupScale: {x: 1.1, y: 1.1}
   dropValidImpactScale: {x: 0.92, y: 1.08}
   dropInvalidImpactScale: {x: 0.88, y: 1.14}
   overshootScale: {x: 1.03, y: 0.97}
@@ -36,7 +36,7 @@ MonoBehaviour:
   pauseSpineWhileDragging: 0
   dragStopMixDuration: 0.08
   playIdleAnimation: 1
-  idleAnimationName: animation
+  idleAnimationName: Idle
   enableIdleBreathing: 1
   idleHeadBreathDegrees: 3
   idleFaceBreath: 2
@@ -47,9 +47,9 @@ MonoBehaviour:
   ghostValidOutlineColor: {r: 0.35, g: 0.75, b: 1, a: 0.2901961}
   ghostInvalidOutlineColor: {r: 1, g: 0.25, b: 0.25, a: 1}
   enableInvalidHatch: 1
-  hatchColor: {r: 0.95, g: 0.25, b: 0.18, a: 1}
-  hatchOpacity: 0.615
-  hatchWidth: 0.5
+  hatchColor: {r: 1, g: 0.15, b: 0.15, a: 1}
+  hatchOpacity: 0.8
+  hatchWidth: 0.18
   hatchAngleDeg: 135
   hatchScale: 10
   stripesPerCell: 0.7

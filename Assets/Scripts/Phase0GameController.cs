@@ -59,6 +59,10 @@ namespace Phase0
 
         private Int2[] _lastPlacedWorldCells; // cached after placement
         private Renderer[] _cachedPieceRenderers;
+        private readonly Dictionary<Vector2Int, SpriteRenderer> _cellRenderers = new();
+        private readonly HashSet<Vector2Int> _blockedCells = new();
+        private readonly HashSet<Vector2Int> _hoverTintedCells = new();
+        private readonly HashSet<Vector2Int> _placedCells = new();
 
         private void Awake()
         {
@@ -91,15 +95,21 @@ namespace Phase0
                 return;
             }
 
+            CacheCellRenderers();
+
             // Build blocked list
             var blocked = new List<Int2>();
+            _blockedCells.Clear();
             foreach (Transform cell in gridRoot)
             {
                 if (!cell.name.Contains("Cell_")) continue;
                 if (!cell.name.Contains("_BLOCKED")) continue;
 
                 if (TryParseCellName(cell.name, out var coord))
+                {
                     blocked.Add(new Int2(coord.x, coord.y));
+                    _blockedCells.Add(coord);
+                }
             }
 
             // Occupied: dummy piece occupies exactly 1 cell (as per requirement).
@@ -154,6 +164,8 @@ namespace Phase0
             {
                 gameFeelFx.SetHatchScaleForCellSize(sceneConfig.cellSize);
             }
+
+            ApplyBaseCellColors();
         }
 
         // Update loop: input -> core brain -> view updates (FX/ghost).
@@ -204,6 +216,7 @@ namespace Phase0
                 placedHighlightView.Clear();
             }
             _brain.OnPickup();
+            ClearPlacedCells();
 
             // Compute drag offset so it doesn't jump
             var w = pointer.worldPos;
@@ -213,6 +226,7 @@ namespace Phase0
             _brain.ResetCandidate();
             if (ghostView != null) ghostView.SetVisible(false);
             if (gameFeelFx != null) gameFeelFx.SetInvalidVisual(false);
+            ClearHoverTint();
         }
 
         private void OnPointerHeld(PointerState pointer)
@@ -305,6 +319,7 @@ namespace Phase0
                 }
 
                 if (ghostView != null) ghostView.SetVisible(false);
+                ClearHoverTint();
                 return;
             }
 
@@ -318,6 +333,8 @@ namespace Phase0
 
                 // Mark occupied cells
                 _lastPlacedWorldCells = _brain.PlaceCandidate();
+                SyncPlacedCellsFromBrain();
+                ApplyBaseCellColors();
 
                 UpdatePlacedHighlight();
 
@@ -340,10 +357,13 @@ namespace Phase0
 
                 // Re-occupy original cells if it was placed before
                 _brain.RestorePlacementIfAny();
+                SyncPlacedCellsFromBrain();
+                ApplyBaseCellColors();
                 UpdatePlacedHighlight();
             }
 
             if (ghostView != null) ghostView.SetVisible(false);
+            ClearHoverTint();
         }
 
         private void UpdatePlacedHighlight()
@@ -433,6 +453,8 @@ namespace Phase0
             }
 
             _brain.UpdateCandidate(new Int2(approxCell.x, approxCell.y), shouldSwitch);
+
+            UpdateHoverTint();
 
             // Ghost view
             if (ghostView != null)
@@ -615,6 +637,130 @@ namespace Phase0
                 if (pv == null) pv = activePieceRoot.gameObject.AddComponent<Phase0PieceTilesView>();
                 pv.AutoCollectTiles();
             }
+        }
+
+        private void CacheCellRenderers()
+        {
+            _cellRenderers.Clear();
+            if (gridRoot == null) return;
+
+            foreach (Transform cell in gridRoot)
+            {
+                if (!cell.name.Contains("Cell_")) continue;
+                if (!TryParseCellName(cell.name, out var coord)) continue;
+
+                var sr = cell.GetComponent<SpriteRenderer>();
+                if (sr != null)
+                {
+                    _cellRenderers[coord] = sr;
+                }
+            }
+        }
+
+        public void ApplyBaseCellColors()
+        {
+            if (_cellRenderers.Count == 0) return;
+
+            Color baseColor = sceneConfig != null ? sceneConfig.baseCellColor : Color.white;
+            Color blockedColor = sceneConfig != null ? sceneConfig.blockedCellColor : new Color(1f, 0.25f, 0.25f, 1f);
+            Color placedColor = sceneConfig != null ? sceneConfig.placedCellColor : new Color(0.25f, 0.9f, 0.35f, 1f);
+
+            foreach (var kvp in _cellRenderers)
+            {
+                var coord = kvp.Key;
+                var sr = kvp.Value;
+                if (sr == null) continue;
+
+                bool isBlocked = _blockedCells.Contains(coord);
+                sr.color = isBlocked ? blockedColor : baseColor;
+            }
+
+            foreach (var coord in _placedCells)
+            {
+                if (_cellRenderers.TryGetValue(coord, out var sr) && sr != null)
+                {
+                    sr.color = placedColor;
+                }
+            }
+        }
+
+        private void UpdateHoverTint()
+        {
+            if (_cellRenderers.Count == 0 || !_brain.HasCandidate) return;
+
+            var localCells = _brain.LocalCells;
+            if (localCells == null || localCells.Length == 0) return;
+
+            var candidateOrigin = _brain.CandidateOriginCell;
+            bool isValid = _brain.CandidateValid;
+
+            Color validColor = sceneConfig != null ? sceneConfig.hoverValidCellColor : new Color(0.35f, 0.75f, 1f, 1f);
+            Color invalidColor = sceneConfig != null ? sceneConfig.hoverInvalidCellColor : new Color(1f, 0.25f, 0.25f, 1f);
+            Color tintColor = isValid ? validColor : invalidColor;
+
+            ClearHoverTint();
+            _hoverTintedCells.Clear();
+            for (int i = 0; i < localCells.Length; i++)
+            {
+                var world = candidateOrigin + localCells[i];
+                var coord = new Vector2Int(world.x, world.y);
+                if (!_mapping.IsInsideGrid(coord)) continue;
+                if (!_cellRenderers.TryGetValue(coord, out var sr) || sr == null) continue;
+
+                sr.color = tintColor;
+                _hoverTintedCells.Add(coord);
+            }
+        }
+
+        private void ClearHoverTint()
+        {
+            if (_hoverTintedCells.Count == 0) return;
+            foreach (var coord in _hoverTintedCells)
+            {
+                ApplyDefaultCellColor(coord);
+            }
+            _hoverTintedCells.Clear();
+        }
+
+        private void SyncPlacedCellsFromBrain()
+        {
+            _placedCells.Clear();
+            if (!_brain.IsPlacedOnBoard || _brain.LastPlacedWorldCells == null) return;
+
+            for (int i = 0; i < _brain.LastPlacedWorldCells.Length; i++)
+            {
+                var cell = _brain.LastPlacedWorldCells[i];
+                var coord = new Vector2Int(cell.x, cell.y);
+                _placedCells.Add(coord);
+            }
+        }
+
+        private void ClearPlacedCells()
+        {
+            if (_placedCells.Count == 0) return;
+            foreach (var coord in _placedCells)
+            {
+                ApplyDefaultCellColor(coord);
+            }
+            _placedCells.Clear();
+        }
+
+        private void ApplyDefaultCellColor(Vector2Int coord)
+        {
+            if (!_cellRenderers.TryGetValue(coord, out var sr) || sr == null) return;
+
+            Color baseColor = sceneConfig != null ? sceneConfig.baseCellColor : Color.white;
+            Color blockedColor = sceneConfig != null ? sceneConfig.blockedCellColor : new Color(1f, 0.25f, 0.25f, 1f);
+            Color placedColor = sceneConfig != null ? sceneConfig.placedCellColor : new Color(0.25f, 0.9f, 0.35f, 1f);
+
+            if (_placedCells.Contains(coord))
+            {
+                sr.color = placedColor;
+                return;
+            }
+
+            bool isBlocked = _blockedCells.Contains(coord);
+            sr.color = isBlocked ? blockedColor : baseColor;
         }
 
         private void CachePieceRenderers()

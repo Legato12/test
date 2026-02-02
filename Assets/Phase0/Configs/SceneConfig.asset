@@ -15,6 +15,11 @@ MonoBehaviour:
   gridSize: 4
   cellSize: 1
   cellGap: 0.06
+  baseCellColor: {r: 1, g: 1, b: 1, a: 1}
+  blockedCellColor: {r: 1, g: 0.25, b: 0.25, a: 1}
+  hoverValidCellColor: {r: 0.35, g: 0.75, b: 1, a: 1}
+  hoverInvalidCellColor: {r: 1, g: 0.25, b: 0.25, a: 1}
+  placedCellColor: {r: 0.25, g: 0.9, b: 0.35, a: 1}
   tapDragThresholdPx: 10
   snapDuration: 0.12
   snapOvershootRatio: 0.2

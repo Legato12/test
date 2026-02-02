@@ -40,6 +40,12 @@ namespace Phase0
         public int gridSize = 4;              // 4x4
         public float cellSize = 1.0f;
         public float cellGap = 0.06f;
+        [Header("Board Visuals")]
+        public Color baseCellColor = Color.white;
+        public Color blockedCellColor = new Color(1f, 0.25f, 0.25f, 1f);
+        public Color hoverValidCellColor = new Color(0.35f, 0.75f, 1f, 1f);
+        public Color hoverInvalidCellColor = new Color(1f, 0.25f, 0.25f, 1f);
+        public Color placedCellColor = new Color(0.25f, 0.9f, 0.35f, 1f);
 
         [Header("Input")]
         [Tooltip("Tap vs drag threshold in pixels (they suggested ~10 px).")]

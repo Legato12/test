@@ -20,6 +20,7 @@ public static class Phase0SceneSetup
     private const string RootName = "Phase0_Root";
     private const string GeneratedFolder = "Assets/Phase0/Generated";
     private const string WhiteTexturePath = GeneratedFolder + "/white_32.png";
+    private const string OutlineSpritePath = "Assets/Sptites/Outline.png";
 
     // Grid settings (can tweak after creation)
     private const int GridSize = 4;              // 4x4 as requested
@@ -128,11 +129,17 @@ public static class Phase0SceneSetup
         var gridRoot = new GameObject("GridRoot");
         gridRoot.transform.SetParent(board.transform);
 
-        // Visual sprite to use everywhere
+        // Visual sprites
         var whiteSprite = AssetDatabase.LoadAssetAtPath<Sprite>(WhiteTexturePath);
+        var outlineSprite = AssetDatabase.LoadAssetAtPath<Sprite>(OutlineSpritePath);
         if (whiteSprite == null)
         {
             EditorUtility.DisplayDialog("Phase 0 Setup", "Failed to load generated sprite at:\n" + WhiteTexturePath, "OK");
+            return;
+        }
+        if (outlineSprite == null)
+        {
+            EditorUtility.DisplayDialog("Phase 0 Setup", "Failed to load outline sprite at:\n" + OutlineSpritePath, "OK");
             return;
         }
 
@@ -154,31 +161,18 @@ public static class Phase0SceneSetup
                 );
 
                 var sr = cell.AddComponent<SpriteRenderer>();
-                sr.sprite = whiteSprite;
+                sr.sprite = outlineSprite;
                 sr.drawMode = SpriteDrawMode.Sliced;
                 sr.size = new Vector2(CellSize, CellSize);
-                sr.color = new Color(0.16f, 0.17f, 0.20f, 1f);
+                sr.color = Color.white;
                 sr.sortingLayerName = "Grid";
                 sr.sortingOrder = 0;
-
-                // Light border effect by adding a child outline (cheap & readable)
-                var border = new GameObject("Border");
-                border.transform.SetParent(cell.transform);
-                border.transform.localPosition = Vector3.zero;
-
-                var borderSR = border.AddComponent<SpriteRenderer>();
-                borderSR.sprite = whiteSprite;
-                borderSR.drawMode = SpriteDrawMode.Sliced;
-                borderSR.size = new Vector2(CellSize + 0.06f, CellSize + 0.06f);
-                borderSR.color = new Color(0f, 0f, 0f, 0.25f);
-                borderSR.sortingLayerName = "Grid";
-                borderSR.sortingOrder = -1; // behind the cell
 
                 // Mark blocked cells
                 if (DefaultBlockedCells.Any(v => v.x == x && v.y == y))
                 {
                     cell.name += "_BLOCKED";
-                    sr.color = new Color(0.25f, 0.10f, 0.12f, 1f);
+                    sr.color = new Color(1f, 0.25f, 0.25f, 1f);
                 }
             }
         }

@@ -30,8 +30,7 @@ namespace Phase0
         private Tween _scaleTween;
 
         // invalid "no" shake timer
-        private float _noShakeT;
-        private float _noShakeDur;
+        private float _noShakeT;        private float _noShakeDur;
         private float _noShakeAmpDeg;
 
         private SkeletonAnimation _sa;
@@ -125,6 +124,8 @@ namespace Phase0
 
         public void SetDragging(bool dragging)
         {
+            SuperFix2_OnDraggingChanged(dragging); // SUPERFIX2_CALL_20260203
+
             _dragging = dragging;
             ApplySpineState(dragging ? SpineState.Dragging : SpineState.Idle);
         }
@@ -177,6 +178,8 @@ namespace Phase0
         // Call every frame from controller with piece root position (the thing you move)
         public void UpdateKinematics(Vector3 pieceWorldPos)
         {
+            SuperFix2_OnKinematics(pieceWorldPos); // SUPERFIX2_CALL_20260203
+
             float dt = Mathf.Max(Time.deltaTime, 1e-5f);
             _vel = (pieceWorldPos - _lastPos) / dt;
             _lastPos = pieceWorldPos;
@@ -196,6 +199,8 @@ namespace Phase0
 
         public void OnDropValid()
         {
+            SuperFix2_OnDropValid(); // SUPERFIX2_CALL_20260203
+
             if (!Validate()) return;
             Impact(settings.dropValidImpactScale);
         }
@@ -244,6 +249,8 @@ namespace Phase0
 
         private void Update()
         {
+            SuperFix2_Tick(); // SUPERFIX2_CALL_20260203
+
             TickDragScale();
             TickNoShake();
             TickIdle();
@@ -779,5 +786,291 @@ namespace Phase0
         {
             return (a - b).sqrMagnitude <= 0.000001f;
         }
-    }
+    
+
+        // =====================================================================
+        // SUPERFIX2_JUICE_INJECTED_20260203
+        // Adds: Shadow offset, Drag tilt, Spine Impact animation (track 1).
+        // All knobs are serialized (configurable) and live on Phase0GameFeelFX.
+        // =====================================================================
+
+        [Header("SuperFix2: Shadow")]
+        [SerializeField] private bool sf2_enableShadow = true;
+        [SerializeField] private Vector2 sf2_shadowIdleOffsetPx = Vector2.zero;
+        [SerializeField] private Vector2 sf2_shadowPickupOffsetPx = new Vector2(10f, -10f);
+        [SerializeField, Range(0f, 1f)] private float sf2_shadowIdleAlpha = 0.35f;
+        [SerializeField, Range(0f, 1f)] private float sf2_shadowPickupAlpha = 0.22f;
+        [SerializeField] private Vector2 sf2_shadowIdleScale = Vector2.one;
+        [SerializeField] private Vector2 sf2_shadowPickupScale = new Vector2(0.92f, 0.92f);
+        [Tooltip("Sorting order relative to the main (Spine) renderer. -1 => behind the cat.")]
+        [SerializeField] private int sf2_shadowSortingOrderOffset = -1;
+
+        [Header("SuperFix2: Drag Tilt")]
+        [SerializeField] private bool sf2_enableDragTilt = true;
+        [SerializeField, Range(0f, 15f)] private float sf2_dragTiltMaxDegrees = 3f;
+        [SerializeField, Range(0f, 60f)] private float sf2_dragTiltSmoothing = 18f;
+        [SerializeField] private float sf2_dragTiltSpeedForMax = 6f;
+
+        [Header("SuperFix2: Spine Impact (valid drop)")]
+        [SerializeField] private bool sf2_enableSpineImpact = true;
+        [SerializeField] private string sf2_impactAnimationName = "Impact";
+        [SerializeField] private int sf2_impactTrackIndex = 1;
+        [SerializeField] private float sf2_impactDistanceForMax = 2.5f;
+        [SerializeField, Range(0f, 1f)] private float sf2_impactMinAlpha = 0.35f;
+        [SerializeField, Range(0f, 1f)] private float sf2_impactMaxAlpha = 1f;
+        [SerializeField] private float sf2_impactMixDuration = 0.06f;
+
+        // ---- cached runtime ----
+        private bool sf2_isDragging;
+        private Vector3 sf2_dragStartWorld;
+        private Vector3 sf2_prevWorld;
+        private Vector3 sf2_velWorld;
+        private float sf2_tiltDeg;
+
+        private Transform sf2_visualRoot;
+        private Quaternion sf2_visualBaseLocalRot;
+        private bool sf2_visualBaseRotCached;
+
+        private SpriteRenderer sf2_shadowSR;
+        private Transform sf2_shadowT;
+        private Vector3 sf2_shadowBaseLocalPos;
+        private Vector3 sf2_shadowBaseLocalScale;
+        private Color sf2_shadowBaseColor;
+
+        private Renderer sf2_mainRenderer;
+        private Spine.Unity.SkeletonAnimation sf2_skeleton;
+        private bool sf2_refsReady;
+
+        private void SuperFix2_EnsureRefs() {
+            if (sf2_refsReady) return;
+
+            // Visual root: try serialized field (reflection) -> named child -> self.
+            try {
+                var f = GetType().GetField("visualRoot", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                if (f != null) sf2_visualRoot = f.GetValue(this) as Transform;
+            } catch { /* ignore */ }
+
+            if (sf2_visualRoot == null) {
+                var t = transform.Find("SpineVisualOffset");
+                if (t != null) sf2_visualRoot = t;
+            }
+
+            if (sf2_visualRoot == null) sf2_visualRoot = transform;
+
+            if (!sf2_visualBaseRotCached) {
+                sf2_visualBaseLocalRot = sf2_visualRoot.localRotation;
+                sf2_visualBaseRotCached = true;
+            }
+
+            // Skeleton (Spine): try common serialized fields -> hierarchy.
+            try {
+                var f = GetType().GetField("skeletonAnimation", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                if (f != null) sf2_skeleton = f.GetValue(this) as Spine.Unity.SkeletonAnimation;
+            } catch { /* ignore */ }
+
+            if (sf2_skeleton == null) {
+                try {
+                    var f = GetType().GetField("spine", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                    if (f != null) sf2_skeleton = f.GetValue(this) as Spine.Unity.SkeletonAnimation;
+                } catch { /* ignore */ }
+            }
+
+            if (sf2_skeleton == null) sf2_skeleton = GetComponentInChildren<Spine.Unity.SkeletonAnimation>(true);
+
+            // Main renderer: prefer non-sprite renderer (Spine uses MeshRenderer).
+            if (sf2_skeleton != null) sf2_mainRenderer = sf2_skeleton.GetComponent<Renderer>();
+            if (sf2_mainRenderer == null) {
+                var rends = GetComponentsInChildren<Renderer>(true);
+                foreach (var r in rends) {
+                    if (r == null) continue;
+                    if (r is SpriteRenderer) continue;
+                    sf2_mainRenderer = r;
+                    break;
+                }
+            }
+
+            // Shadow: pick best SpriteRenderer with "shadow" in name or sprite.
+            var candidates = GetComponentsInChildren<SpriteRenderer>(true);
+            sf2_shadowSR = null;
+            var bestScore = int.MinValue;
+
+            foreach (var sr in candidates) {
+                if (sr == null) continue;
+
+                var goName = sr.gameObject.name.ToLowerInvariant();
+                var spriteName = sr.sprite != null ? sr.sprite.name.ToLowerInvariant() : string.Empty;
+
+                var isShadowLike = goName.Contains("shadow") || spriteName.Contains("shadow");
+                if (!isShadowLike) continue;
+
+                var score = 0;
+                if (sr.sprite != null) score += 10;
+                if (sr.sprite != null && !spriteName.Contains("gen")) score += 5; // prefer artist sprite over generated
+                if (goName == "shadow") score += 4;
+                if (sr.transform.IsChildOf(sf2_visualRoot)) score += 2;
+                if (sr.enabled) score += 1;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    sf2_shadowSR = sr;
+                }
+            }
+
+            if (sf2_shadowSR != null) {
+                sf2_shadowT = sf2_shadowSR.transform;
+
+                sf2_shadowBaseLocalPos = sf2_shadowT.localPosition;
+                sf2_shadowBaseLocalScale = sf2_shadowT.localScale;
+                sf2_shadowBaseColor = sf2_shadowSR.color;
+
+                // Disable other duplicate shadows (keeps hierarchy but avoids double-dark blobs).
+                foreach (var sr in candidates) {
+                    if (sr == null || sr == sf2_shadowSR) continue;
+
+                    var goName = sr.gameObject.name.ToLowerInvariant();
+                    var spriteName = sr.sprite != null ? sr.sprite.name.ToLowerInvariant() : string.Empty;
+                    var isShadowLike = goName.Contains("shadow") || spriteName.Contains("shadow");
+                    if (!isShadowLike) continue;
+
+                    sr.enabled = false;
+                }
+
+                SuperFix2_SyncShadowSorting();
+            }
+
+            sf2_refsReady = true;
+        }
+
+        private void SuperFix2_SyncShadowSorting() {
+            if (sf2_shadowSR == null || sf2_mainRenderer == null) return;
+
+            sf2_shadowSR.sortingLayerID = sf2_mainRenderer.sortingLayerID;
+            sf2_shadowSR.sortingOrder = sf2_mainRenderer.sortingOrder + sf2_shadowSortingOrderOffset;
+        }
+
+        private Vector3 SuperFix2_PixelsToWorld(Vector2 px) {
+            var cam = Camera.main;
+            if (cam != null && cam.orthographic) {
+                var ppu = Screen.height / (2f * cam.orthographicSize);
+                if (ppu > 0.0001f) {
+                    return new Vector3(px.x / ppu, px.y / ppu, 0f);
+                }
+            }
+
+            // Fallback: assume ~100 px per unit.
+            return new Vector3(px.x / 100f, px.y / 100f, 0f);
+        }
+
+        private void SuperFix2_ApplyShadow() {
+            if (!sf2_enableShadow) return;
+            if (sf2_shadowSR == null || sf2_shadowT == null) return;
+
+            SuperFix2_SyncShadowSorting();
+
+            var px = sf2_isDragging ? sf2_shadowPickupOffsetPx : sf2_shadowIdleOffsetPx;
+            var worldOff = SuperFix2_PixelsToWorld(px);
+            var parent = sf2_shadowT.parent;
+            var localOff = parent != null ? parent.InverseTransformVector(worldOff) : worldOff;
+
+            sf2_shadowT.localPosition = sf2_shadowBaseLocalPos + localOff;
+
+            var mul = sf2_isDragging ? sf2_shadowPickupScale : sf2_shadowIdleScale;
+            sf2_shadowT.localScale = new Vector3(
+                sf2_shadowBaseLocalScale.x * mul.x,
+                sf2_shadowBaseLocalScale.y * mul.y,
+                sf2_shadowBaseLocalScale.z
+            );
+
+            var c = sf2_shadowBaseColor;
+            c.a = Mathf.Clamp01(sf2_isDragging ? sf2_shadowPickupAlpha : sf2_shadowIdleAlpha);
+            sf2_shadowSR.color = c;
+
+            if (!sf2_shadowSR.enabled) sf2_shadowSR.enabled = true;
+        }
+
+        private void SuperFix2_ApplyTilt() {
+            if (!sf2_enableDragTilt) return;
+            if (sf2_visualRoot == null) return;
+
+            var target = 0f;
+            if (sf2_isDragging) {
+                var speedForMax = Mathf.Max(0.0001f, sf2_dragTiltSpeedForMax);
+                var t = Mathf.Clamp01(sf2_velWorld.magnitude / speedForMax);
+
+                var sign = 0f;
+                if (Mathf.Abs(sf2_velWorld.x) > 0.0005f) sign = Mathf.Sign(sf2_velWorld.x);
+
+                target = sign * sf2_dragTiltMaxDegrees * t;
+            }
+
+            var k = 1f - Mathf.Exp(-sf2_dragTiltSmoothing * Time.unscaledDeltaTime);
+            sf2_tiltDeg = Mathf.Lerp(sf2_tiltDeg, target, k);
+
+            if (!sf2_visualBaseRotCached) {
+                sf2_visualBaseLocalRot = sf2_visualRoot.localRotation;
+                sf2_visualBaseRotCached = true;
+            }
+            if (!sf2_isDragging && Mathf.Abs(sf2_tiltDeg) <= 0.001f) {
+                sf2_visualBaseLocalRot = sf2_visualRoot.localRotation;
+                return;
+            }
+
+            sf2_visualRoot.localRotation = sf2_visualBaseLocalRot * Quaternion.Euler(0f, 0f, sf2_tiltDeg);
+        }
+
+        private void SuperFix2_Tick() {
+            SuperFix2_EnsureRefs();
+            if (!sf2_refsReady) return;
+
+            SuperFix2_ApplyShadow();
+            SuperFix2_ApplyTilt();
+        }
+
+        private void SuperFix2_OnDraggingChanged(bool dragging) {
+            SuperFix2_EnsureRefs();
+
+            sf2_isDragging = dragging;
+            if (dragging) {
+                sf2_dragStartWorld = transform.position;
+                sf2_prevWorld = transform.position;
+                sf2_velWorld = Vector3.zero;
+            }
+        }
+
+        private void SuperFix2_OnKinematics(Vector3 pieceWorldPos) {
+            var dt = Mathf.Max(0.0001f, Time.unscaledDeltaTime);
+            sf2_velWorld = (pieceWorldPos - sf2_prevWorld) / dt;
+            sf2_prevWorld = pieceWorldPos;
+        }
+
+        private void SuperFix2_OnDropValid() {
+            if (!sf2_enableSpineImpact) return;
+
+            SuperFix2_EnsureRefs();
+            if (sf2_skeleton == null) return;
+
+            var dist = Vector3.Distance(sf2_dragStartWorld, transform.position);
+            var t = sf2_impactDistanceForMax > 0.0001f ? Mathf.Clamp01(dist / sf2_impactDistanceForMax) : 1f;
+            var alpha = Mathf.Lerp(sf2_impactMinAlpha, sf2_impactMaxAlpha, t);
+
+            try {
+                var state = sf2_skeleton.AnimationState;
+                if (state == null) return;
+
+                var entry = state.SetAnimation(sf2_impactTrackIndex, sf2_impactAnimationName, false);
+                if (entry == null) return;
+
+                entry.Alpha = alpha;
+                entry.MixDuration = sf2_impactMixDuration;
+
+                entry.Complete += _ => {
+                    try {
+                        state.SetEmptyAnimation(sf2_impactTrackIndex, 0f);
+                    } catch { /* ignore */ }
+                };
+            } catch { /* ignore */ }
+        }
+        // ============================ END SUPERFIX2 ===========================
+
+}
 }

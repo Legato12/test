@@ -33,7 +33,7 @@ MonoBehaviour:
   faceFollowStiffness: 14
   faceOffsetXMinMax: {x: -20, y: 70}
   faceOffsetYMinMax: {x: -40, y: 40}
-  pauseSpineWhileDragging: 0
+  pauseSpineWhileDragging: 1
   dragStopMixDuration: 0.08
   playIdleAnimation: 1
   idleAnimationName: Idle

@@ -46,6 +46,13 @@ namespace Phase0
         private readonly Phase0BoardMapping _mapping = new();
         private readonly Phase0PlacementBrain _brain = new();
 
+        private bool _hasEverLocked;
+        private Vector3 _spawnWorldPos;
+        private int _spawnRotationCW;
+
+        private Int2 _lastLockedOriginCell;
+        private int _lastLockedRotationCW;
+
         // Placement state (controller only; core brain owns rules)
         private bool _held;
         private bool _movedBeyondThreshold;
@@ -128,6 +135,10 @@ namespace Phase0
                 shapeDefinition != null ? ToInt2Array(shapeDefinition.baseCells) : null,
                 shapeDefinition != null ? new Int2(shapeDefinition.pivot.x, shapeDefinition.pivot.y) : Int2.zero
             );
+
+            _spawnWorldPos = activePieceRoot != null ? activePieceRoot.position : default;
+            _spawnRotationCW = _brain.RotationCW;
+            _hasEverLocked = false;
 
             // Init views
             var pieceTiles = activePieceRoot != null ? activePieceRoot.GetComponent<Phase0PieceTilesView>() : null;
@@ -333,6 +344,9 @@ namespace Phase0
 
                 // Mark occupied cells
                 _lastPlacedWorldCells = _brain.PlaceCandidate();
+                _hasEverLocked = true;
+                _lastLockedOriginCell = _brain.LastPlacedOriginCell;
+                _lastLockedRotationCW = _brain.RotationCW;
                 SyncPlacedCellsFromBrain();
                 ApplyBaseCellColors();
 
@@ -346,17 +360,34 @@ namespace Phase0
             }
             else
             {
-                PlaySnapTween(activePieceRoot.position, _pieceOriginBeforeDrag, isValid: false);
+                Vector3 returnPos;
+                int returnRotationCW;
+
+                if (_hasEverLocked)
+                {
+                    returnPos = _mapping.CellToWorldCenter(new Vector2Int(_lastLockedOriginCell.x, _lastLockedOriginCell.y));
+                    returnRotationCW = _lastLockedRotationCW;
+                }
+                else
+                {
+                    returnPos = _spawnWorldPos;
+                    returnRotationCW = _spawnRotationCW;
+                }
+
+                _brain.RestorePlacementIfAny();
+
+                _brain.SetRotationCW(returnRotationCW);
+                ApplyRotationVisuals(returnRotationCW, immediate: false);
 
                 if (gameFeelFx != null)
                 {
-                    gameFeelFx.OnDropInvalid();
+                    gameFeelFx.PlayReleaseInvalid(activePieceRoot, _cachedPieceRenderers);
                 }
+
+                PlaySnapTween(activePieceRoot.position, returnPos, isValid: false);
 
                 Phase0Haptics.Pulse(this, count: 2, intervalSeconds: 0.05f);
 
-                // Re-occupy original cells if it was placed before
-                _brain.RestorePlacementIfAny();
                 SyncPlacedCellsFromBrain();
                 ApplyBaseCellColors();
                 UpdatePlacedHighlight();
@@ -531,6 +562,11 @@ namespace Phase0
 
         private void ApplyRotationVisuals()
         {
+            ApplyRotationVisuals(_brain.RotationCW, immediate: false);
+        }
+
+        private void ApplyRotationVisuals(int rotationCW, bool immediate)
+        {
             // Update placeholder tiles layout (not rotating transform)
             var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
             if (pieceTiles != null)
@@ -549,7 +585,7 @@ namespace Phase0
                         Debug.LogWarning("Phase0GameController: SpineAnchor.localPosition should be (0,0,0) to avoid pivot drift.", spineAnchor);
                     }
 
-                    float angle = -90f * _brain.RotationCW;
+                    float angle = -90f * rotationCW;
                     _rotationTween.Stop();
                     float duration = sceneConfig != null ? sceneConfig.rotateDuration : 0.12f;
                     float strength = sceneConfig != null ? sceneConfig.rotateOvershootStrength : 1.15f;
@@ -557,7 +593,14 @@ namespace Phase0
                     strength = Mathf.Clamp(strength, 0.1f, 2f);
 
                     var target = Quaternion.Euler(0f, 0f, angle);
-                    _rotationTween = Tween.LocalRotation(spineAnchor, target, duration, Easing.Overshoot(strength));
+                    if (immediate || duration <= 0.0001f)
+                    {
+                        spineAnchor.localRotation = target;
+                    }
+                    else
+                    {
+                        _rotationTween = Tween.LocalRotation(spineAnchor, target, duration, Easing.Overshoot(strength));
+                    }
 
                     var visualOffset = spineAnchor.Find("SpineVisualOffset");
                     if (visualOffset != null)

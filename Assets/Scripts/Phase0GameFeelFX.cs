@@ -30,7 +30,7 @@ namespace Phase0
         private bool _dragging;
 
         // tween state
-        private Vector3 _baseScale;
+        private Vector3 _baseScle;
         private Tween _scaleTween;
 
         // invalid "no" shake timer
@@ -226,6 +226,11 @@ namespace Phase0
             if (!Validate()) return;
             SuperFix2_OnDropInvalid(); // SUPERFIX2_CALL_20260203
             TriggerNoShake();
+        }
+
+        public void PlayReleaseInvalid(Transform pieceRoot, Renderer[] cachedRenderers)
+        {
+            OnDropInvalid();
         }
 
         private void Impact(Vector2 impact)

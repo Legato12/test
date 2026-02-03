@@ -71,6 +71,10 @@ namespace Phase0
         private readonly HashSet<Vector2Int> _hoverTintedCells = new();
         private readonly HashSet<Vector2Int> _placedCells = new();
 
+        private Vector2Int[] _scratchCandidateAll;
+        private Vector2Int[] _scratchCandidateInside;
+        private int _scratchInsideCount;
+
         private void Awake()
         {
             AutoFindRefs();
@@ -135,6 +139,8 @@ namespace Phase0
                 shapeDefinition != null ? ToInt2Array(shapeDefinition.baseCells) : null,
                 shapeDefinition != null ? new Int2(shapeDefinition.pivot.x, shapeDefinition.pivot.y) : Int2.zero
             );
+
+            EnsureScratch(_brain.LocalCells.Length);
 
             _spawnWorldPos = activePieceRoot != null ? activePieceRoot.position : default;
             _spawnRotationCW = _brain.RotationCW;
@@ -496,15 +502,23 @@ namespace Phase0
                     return;
                 }
                 var localCells = _brain.LocalCells;
-                var intersecting = new List<Vector2Int>(localCells.Length);
-                for (int i = 0; i < localCells.Length; i++)
+                int worldCount = localCells != null ? localCells.Length : 0;
+
+                for (int i = 0; i < worldCount; i++)
                 {
                     var world = _brain.CandidateOriginCell + localCells[i];
-                    if (_mapping.IsInsideGrid(new Vector2Int(world.x, world.y)))
-                        intersecting.Add(new Vector2Int(localCells[i].x, localCells[i].y));
+                    _scratchCandidateAll[i] = new Vector2Int(world.x, world.y);
                 }
 
-                if (intersecting.Count == 0 && _brain.CandidateValid)
+                _scratchInsideCount = 0;
+                for (int i = 0; i < worldCount; i++)
+                {
+                    var wc = _scratchCandidateAll[i];
+                    if (_mapping.IsInsideGrid(wc))
+                        _scratchCandidateInside[_scratchInsideCount++] = wc;
+                }
+
+                if (_scratchInsideCount == 0 && _brain.CandidateValid)
                 {
                     ghostView.SetVisible(false);
                     return;
@@ -514,13 +528,28 @@ namespace Phase0
                 ghostView.transform.position = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
                 // Apply footprint (valid: intersecting, invalid: full footprint)
-                var cellsToDraw = _brain.CandidateValid
-                    ? intersecting.ToArray()
-                    : ToVector2IntArray(localCells);
+                UnityEngine.Vector2Int[] cellsToDraw;
+                int drawCount;
+                if (_brain.CandidateValid)
+                {
+                    cellsToDraw = _scratchCandidateAll;
+                    drawCount = worldCount;
+                }
+                else
+                {
+                    cellsToDraw = _scratchCandidateInside;
+                    drawCount = _scratchInsideCount;
+                }
 
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
-                ghostView.EnsureTiles(cellsToDraw.Length, cellSize);
-                ghostView.ApplyLocalCells(cellsToDraw, _mapping.cellStep.x, _mapping.cellStep.y);
+                ghostView.EnsureTiles(drawCount, cellSize);
+                ghostView.ApplyLocalCells(cellsToDraw, drawCount, _mapping.cellStep.x, _mapping.cellStep.y);
+
+                var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
+                if (pieceTiles != null)
+                {
+                    pieceTiles.ApplyLocalCells(cellsToDraw, drawCount, _mapping.cellStep.x, _mapping.cellStep.y);
+                }
 
                 if (gameFeelFx != null)
                 {
@@ -847,6 +876,15 @@ namespace Phase0
             }
 
             return false;
+        }
+
+        private void EnsureScratch(int maxCells)
+        {
+            if (_scratchCandidateAll == null || _scratchCandidateAll.Length != maxCells)
+                _scratchCandidateAll = new Vector2Int[maxCells];
+
+            if (_scratchCandidateInside == null || _scratchCandidateInside.Length != maxCells)
+                _scratchCandidateInside = new Vector2Int[maxCells];
         }
 
         private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, Renderer[] cachedRenderers, float fallbackPaddingWorld, Vector2 fallbackExtents)

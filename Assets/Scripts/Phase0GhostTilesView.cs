@@ -44,13 +44,25 @@ namespace Phase0
             }
         }
 
-        public void ApplyLocalCells(Vector2Int[] localCells, float stepX, float stepY)
+        public void ApplyLocalCells(Vector2Int[] localCells, int count, float stepX, float stepY)
         {
-            for (int i = 0; i < localCells.Length; i++)
+            EnsureTiles(count, Mathf.Max(Mathf.Abs(stepX), Mathf.Abs(stepY)));
+            for (int i = 0; i < count; i++)
             {
                 var c = localCells[i];
                 _tiles[i].transform.localPosition = new Vector3(c.x * stepX, c.y * stepY, 0f);
+                _tiles[i].enabled = true;
             }
+
+            for (int i = count; i < _tiles.Count; i++)
+            {
+                _tiles[i].enabled = false;
+            }
+        }
+
+        public void ApplyLocalCells(Vector2Int[] localCells, float stepX, float stepY)
+        {
+            ApplyLocalCells(localCells, localCells != null ? localCells.Length : 0, stepX, stepY);
         }
 
         public void SetVisible(bool visible)

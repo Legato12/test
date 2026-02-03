@@ -30,7 +30,7 @@ namespace Phase0
         private bool _dragging;
 
         // tween state
-        private Vector3 _baseScle;
+        private Vector3 _baseScale;
         private Tween _scaleTween;
 
         // invalid "no" shake timer

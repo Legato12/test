@@ -24,17 +24,22 @@ namespace Phase0
             tiles.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
         }
 
-        public void ApplyLocalCells(Vector2Int[] localCells, float stepX, float stepY)
+        public void ApplyLocalCells(Vector2Int[] localCells, int count, float stepX, float stepY)
         {
             if (tiles == null || tiles.Count == 0) AutoCollectTiles();
             if (tiles == null) return;
 
-            int n = Mathf.Min(tiles.Count, localCells.Length);
+            int n = Mathf.Min(tiles.Count, count);
             for (int i = 0; i < n; i++)
             {
                 var c = localCells[i];
                 tiles[i].localPosition = new Vector3(c.x * stepX, c.y * stepY, 0f);
             }
+        }
+
+        public void ApplyLocalCells(Vector2Int[] localCells, float stepX, float stepY)
+        {
+            ApplyLocalCells(localCells, localCells != null ? localCells.Length : 0, stepX, stepY);
         }
     }
 }

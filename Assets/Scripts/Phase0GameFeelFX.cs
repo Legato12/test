@@ -2,8 +2,10 @@ using System;
 using PrimeTween;
 using UnityEngine;
 
+#if SPINE_UNITY
 using Spine;
 using Spine.Unity;
+#endif
 
 namespace Phase0
 {
@@ -17,7 +19,9 @@ namespace Phase0
         public Transform visualRoot;                 // what we scale
         public UnityEngine.Object skeletonAnimation; // assign SkeletonAnimation if using Spine bones
         public Phase0GameFeelSettingsSO settings;
+#if SPINE_UNITY
         public SkeletonAnimation outlineSkeletonAnimation;
+#endif
         public Transform outlineRoot;
         [SerializeField] private bool debugForceHatch;
 
@@ -33,13 +37,14 @@ namespace Phase0
         private float _noShakeT;        private float _noShakeDur;
         private float _noShakeAmpDeg;
 
+#if SPINE_UNITY
         private SkeletonAnimation _sa;
-        private Bone _headBone;
-        private Bone _faceBone;
-        private Bone _earLBone;
-        private Bone _earRBone;
-        private Bone _tailBone;
-        private Bone _mouthBone;
+        private Spine.Bone _headBone;
+        private Spine.Bone _faceBone;
+        private Spine.Bone _earLBone;
+        private Spine.Bone _earRBone;
+        private Spine.Bone _tailBone;
+        private Spine.Bone _mouthBone;
         private float _headRotDeg;
         private float _faceX;
         private float _faceY;
@@ -51,6 +56,7 @@ namespace Phase0
         private bool _loggedMissingEarR;
         private bool _loggedMissingTail;
         private bool _loggedMissingMouth;
+#endif
 
         private bool _invalidHatchActive;
         private bool _invalidVisualActive;
@@ -78,11 +84,13 @@ namespace Phase0
 #endif
         private bool _loggedForceHatch;
 
+#if SPINE_UNITY
         private enum SpineState
         {
             Idle,
             Dragging
         }
+#endif
 
         private void Awake()
         {
@@ -90,10 +98,12 @@ namespace Phase0
             _baseScale = visualRoot.localScale;
             _lastPos = visualRoot.position;
 
+#if SPINE_UNITY
             _sa = ResolveSkeletonAnimation();
             BindSkeletonEvents();
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
+#endif
             ApplyHatchOverlay();
         }
 
@@ -110,16 +120,20 @@ namespace Phase0
             _baseScale = visualRoot.localScale;
             _lastPos = visualRoot.position;
 
+#if SPINE_UNITY
             _sa = ResolveSkeletonAnimation();
             BindSkeletonEvents();
             TryBindBones(logSuccess: false);
             ApplySpineState(SpineState.Idle, force: true);
+#endif
             ApplyHatchOverlay();
         }
 
         private void OnDisable()
         {
+#if SPINE_UNITY
             UnbindSkeletonEvents();
+#endif
         }
 
         public void SetDragging(bool dragging)
@@ -127,7 +141,9 @@ namespace Phase0
             SuperFix2_OnDraggingChanged(dragging); // SUPERFIX2_CALL_20260203
 
             _dragging = dragging;
+#if SPINE_UNITY
             ApplySpineState(dragging ? SpineState.Dragging : SpineState.Idle);
+#endif
         }
 
         public void SetInvalidHatch(bool enabled)
@@ -208,7 +224,7 @@ namespace Phase0
         public void OnDropInvalid()
         {
             if (!Validate()) return;
-            Impact(settings.dropInvalidImpactScale);
+            SuperFix2_OnDropInvalid(); // SUPERFIX2_CALL_20260203
             TriggerNoShake();
         }
 
@@ -253,19 +269,25 @@ namespace Phase0
 
             TickDragScale();
             TickNoShake();
+#if SPINE_UNITY
             TickIdle();
             TickBoneFollow();
+#endif
 #if SPINE_UNITY
             TickOutlineCenter();
 #endif
+#if SPINE_UNITY
             TickDebugForceHatch();
+#endif
         }
 
+#if SPINE_UNITY
         private void TickIdle()
         {
             if (_spineState != SpineState.Idle) return;
             _idleT += Time.deltaTime;
         }
+#endif
 
         private void TickDragScale()
         {
@@ -320,6 +342,7 @@ namespace Phase0
             _noShakeT += Time.deltaTime;
         }
 
+#if SPINE_UNITY
         private void TickBoneFollow()
         {
             if (!Validate() || !settings.enableBoneFollow) return;
@@ -374,7 +397,9 @@ namespace Phase0
             _faceX = Mathf.Lerp(_faceX, desiredFaceX, b);
             _faceY = Mathf.Lerp(_faceY, desiredFaceY, b);
         }
+#endif
 
+#if SPINE_UNITY
         private void BindSkeletonEvents()
         {
             if (_sa == null) return;
@@ -555,6 +580,7 @@ namespace Phase0
 
             TryBindBones(logSuccess: true);
         }
+#endif
 
         private void ApplyHatchOverlay()
         {
@@ -838,7 +864,9 @@ namespace Phase0
         private Color sf2_shadowBaseColor;
 
         private Renderer sf2_mainRenderer;
+#if SPINE_UNITY
         private Spine.Unity.SkeletonAnimation sf2_skeleton;
+#endif
         private bool sf2_refsReady;
 
         private void SuperFix2_EnsureRefs() {
@@ -862,6 +890,7 @@ namespace Phase0
                 sf2_visualBaseRotCached = true;
             }
 
+#if SPINE_UNITY
             // Skeleton (Spine): try common serialized fields -> hierarchy.
             try {
                 var f = GetType().GetField("skeletonAnimation", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
@@ -879,6 +908,7 @@ namespace Phase0
 
             // Main renderer: prefer non-sprite renderer (Spine uses MeshRenderer).
             if (sf2_skeleton != null) sf2_mainRenderer = sf2_skeleton.GetComponent<Renderer>();
+#endif
             if (sf2_mainRenderer == null) {
                 var rends = GetComponentsInChildren<Renderer>(true);
                 foreach (var r in rends) {
@@ -1044,6 +1074,12 @@ namespace Phase0
         }
 
         private void SuperFix2_OnDropValid() {
+            if (!Validate()) return;
+            Impact(settings.dropValidImpactScale);
+        }
+
+        private void SuperFix2_OnDropInvalid() {
+#if SPINE_UNITY
             if (!sf2_enableSpineImpact) return;
 
             SuperFix2_EnsureRefs();
@@ -1069,6 +1105,7 @@ namespace Phase0
                     } catch { /* ignore */ }
                 };
             } catch { /* ignore */ }
+#endif
         }
         // ============================ END SUPERFIX2 ===========================
 

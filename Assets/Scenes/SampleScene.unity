@@ -1024,6 +1024,25 @@ MonoBehaviour:
   outlineSkeletonAnimation: {fileID: 0}
   outlineRoot: {fileID: 0}
   debugForceHatch: 0
+  sf2_enableShadow: 1
+  sf2_shadowIdleOffsetPx: {x: 0, y: 0}
+  sf2_shadowPickupOffsetPx: {x: 10, y: -10}
+  sf2_shadowIdleAlpha: 0.35
+  sf2_shadowPickupAlpha: 0.22
+  sf2_shadowIdleScale: {x: 1, y: 1}
+  sf2_shadowPickupScale: {x: 0.92, y: 0.92}
+  sf2_shadowSortingOrderOffset: -1
+  sf2_enableDragTilt: 1
+  sf2_dragTiltMaxDegrees: 3
+  sf2_dragTiltSmoothing: 18
+  sf2_dragTiltSpeedForMax: 6
+  sf2_enableSpineImpact: 1
+  sf2_impactAnimationName: Impact
+  sf2_impactTrackIndex: 1
+  sf2_impactDistanceForMax: 2.5
+  sf2_impactMinAlpha: 0.35
+  sf2_impactMaxAlpha: 1
+  sf2_impactMixDuration: 0.06
 --- !u!1 &606946778
 GameObject:
   m_ObjectHideFlags: 0
@@ -3606,7 +3625,7 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 190
+  m_SortingOrder: 199
   m_Sprite: {fileID: 21300000, guid: ceb8730434ade534bbe4d740339a2d84, type: 3}
   m_Color: {r: 0, g: 0, b: 0, a: 0.35}
   m_FlipX: 0

@@ -57,6 +57,7 @@ namespace Phase0
         private bool _held;
         private bool _movedBeyondThreshold;
         private bool _dragStarted;
+        private bool _pickedUpFromBoardThisTouch;
         private Vector2 _downScreenPos;
         private Vector3 _pieceOriginBeforeDrag;
         private Vector3 _velocity;                  // SmoothDamp velocity
@@ -228,7 +229,8 @@ namespace Phase0
             _pieceOriginBeforeDrag = activePieceRoot.position;
 
             // When picking up from board, clear occupied cells temporarily (so we can re-place)
-            if (_brain.IsPlacedOnBoard && placedHighlightView != null)
+            _pickedUpFromBoardThisTouch = _brain.IsPlacedOnBoard && _brain.LastPlacedWorldCells != null;
+            if (_pickedUpFromBoardThisTouch && placedHighlightView != null)
             {
                 placedHighlightView.Clear();
             }
@@ -303,36 +305,46 @@ namespace Phase0
 
             if (wasTap)
             {
-                if (!_brain.IsPlacedOnBoard)
+                // Tap: rotate and revalidate placement (including locked pieces on board).
+                int previousRotation = _brain.RotationCW;
+                bool hadPlacement = _brain.LastPlacedWorldCells != null && _brain.LastPlacedWorldCells.Length > 0;
+                Int2 originCell = hadPlacement
+                    ? _brain.LastPlacedOriginCell
+                    : new Int2(_mapping.WorldToCellRound(activePieceRoot.position).x,
+                        _mapping.WorldToCellRound(activePieceRoot.position).y);
+
+                RotateCW();
+
+                if (hadPlacement)
                 {
-                    // Tap: rotate when not placed on board. Revalidate placement if it exists outside board.
-                    int previousRotation = _brain.RotationCW;
-                    bool hadPlacement = _brain.LastPlacedWorldCells != null && _brain.LastPlacedWorldCells.Length > 0;
-                    Int2 originCell = hadPlacement
-                        ? _brain.LastPlacedOriginCell
-                        : new Int2(_mapping.WorldToCellRound(activePieceRoot.position).x,
-                            _mapping.WorldToCellRound(activePieceRoot.position).y);
-
-                    RotateCW();
-
-                    if (hadPlacement)
+                    if (_brain.TryCommitPlacementAt(originCell, out _))
                     {
-                        if (_brain.TryCommitPlacementAt(originCell, out _))
-                        {
-                            _lastPlacedWorldCells = _brain.LastPlacedWorldCells;
-                        }
-                        else
-                        {
-                            _brain.SetRotationCW(previousRotation);
-                            ApplyRotationVisuals();
-                            _brain.RestorePlacementIfAny();
-                        }
+                        _lastPlacedWorldCells = _brain.LastPlacedWorldCells;
+                        SyncPlacedCellsFromBrain();
+                        ApplyBaseCellColors();
+                        UpdatePlacedHighlight();
                     }
-
-                    if (gameFeelFx != null)
+                    else
                     {
-                        gameFeelFx.OnRotateTap();
+                        _brain.SetRotationCW(previousRotation);
+                        ApplyRotationVisuals();
+                        _brain.RestorePlacementIfAny();
+                        SyncPlacedCellsFromBrain();
+                        ApplyBaseCellColors();
+                        UpdatePlacedHighlight();
                     }
+                }
+                else if (_pickedUpFromBoardThisTouch)
+                {
+                    _brain.RestorePlacementIfAny();
+                    SyncPlacedCellsFromBrain();
+                    ApplyBaseCellColors();
+                    UpdatePlacedHighlight();
+                }
+
+                if (gameFeelFx != null)
+                {
+                    gameFeelFx.OnRotateTap();
                 }
 
                 if (ghostView != null) ghostView.SetVisible(false);

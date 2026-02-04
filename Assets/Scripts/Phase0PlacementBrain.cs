@@ -1,8 +1,8 @@
 // Phase0PlacementBrain.cs
 // Pure C# placement/rotation brain (no MonoBehaviour). Unity layer provides world mapping + visuals.
 
+using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Phase0
 {
@@ -22,6 +22,10 @@ namespace Phase0
         private bool _isPlacedOnBoard;
         private Int2[] _lastPlacedWorldCells;
         private Int2 _lastPlacedOriginCell;
+
+        private Int2[] _scratchWorldCells;
+        private Int2[] _scratchInBoardCells;
+        private int _scratchInBoardCount;
 
         public int RotationCW => _rotationCW;
         public Int2[] LocalCells => _localCells;
@@ -52,6 +56,8 @@ namespace Phase0
             _isPlacedOnBoard = false;
             _lastPlacedWorldCells = null;
             _lastPlacedOriginCell = Int2.zero;
+
+            EnsureScratch(_localCells != null ? _localCells.Length : 0);
         }
 
         public void SetShape(Int2[] baseCells, Int2 pivot)
@@ -110,29 +116,24 @@ namespace Phase0
         public Int2[] GetCandidateWorldCells()
         {
             if (!_hasCandidate) return null;
-            return _localCells.Select(c => _candidateOriginCell + c).ToArray();
+
+            int count = _localCells != null ? _localCells.Length : 0;
+            if (count == 0) return Array.Empty<Int2>();
+
+            EnsureScratch(count);
+            BuildWorldCells(_candidateOriginCell, count);
+            return CloneScratchWorldCells(count);
         }
 
         public Int2[] PlaceCandidate()
         {
-            if (!_hasCandidate || !_candidateValid) return null;
+            int worldCount;
+            var worldCells = PlaceCandidateReuse(out worldCount);
+            if (worldCells == null) return null;
 
-            var worldCells = _localCells.Select(c => _candidateOriginCell + c).ToArray();
-            var inBoardCells = worldCells.Where(_grid.IsInside).ToArray();
-            if (inBoardCells.Length > 0)
-            {
-                _grid.AddOccupied(inBoardCells);
-                _lastPlacedWorldCells = inBoardCells;
-                _isPlacedOnBoard = true;
-            }
-            else
-            {
-                _lastPlacedWorldCells = null;
-                _isPlacedOnBoard = false;
-            }
+            if (worldCount == 0) return Array.Empty<Int2>();
 
-            _lastPlacedOriginCell = _candidateOriginCell;
-            return worldCells;
+            return CloneScratchWorldCells(worldCount);
         }
 
         public bool TryCommitPlacementAt(Int2 originCell, out Int2 firstInvalid)
@@ -140,12 +141,23 @@ namespace Phase0
             if (!_grid.CanPlace(originCell, _localCells, out firstInvalid))
                 return false;
 
-            var worldCells = _localCells.Select(c => originCell + c).ToArray();
-            var inBoardCells = worldCells.Where(_grid.IsInside).ToArray();
-            if (inBoardCells.Length > 0)
+            int count = _localCells != null ? _localCells.Length : 0;
+            if (count == 0)
             {
-                _grid.AddOccupied(inBoardCells);
-                _lastPlacedWorldCells = inBoardCells;
+                _lastPlacedWorldCells = null;
+                _isPlacedOnBoard = false;
+                _lastPlacedOriginCell = originCell;
+                return true;
+            }
+
+            EnsureScratch(count);
+            BuildWorldCells(originCell, count);
+            BuildInBoardCells(count);
+
+            if (_scratchInBoardCount > 0)
+            {
+                _grid.AddOccupied(_scratchInBoardCells, _scratchInBoardCount);
+                StoreLastPlacedFromScratch(_scratchInBoardCount);
                 _isPlacedOnBoard = true;
             }
             else
@@ -163,10 +175,102 @@ namespace Phase0
             if (_baseCells == null || _baseCells.Length == 0)
             {
                 _localCells = new[] { Int2.zero };
+                EnsureScratch(_localCells.Length);
                 return;
             }
 
             _localCells = ShapeRotation.GetRotated(_baseCells, _pivot, _rotationCW);
+            EnsureScratch(_localCells.Length);
+        }
+
+        private void EnsureScratch(int size)
+        {
+            if (size <= 0) size = 1;
+
+            if (_scratchWorldCells == null || _scratchWorldCells.Length != size)
+            {
+                _scratchWorldCells = new Int2[size];
+            }
+
+            if (_scratchInBoardCells == null || _scratchInBoardCells.Length != size)
+            {
+                _scratchInBoardCells = new Int2[size];
+            }
+        }
+
+        private void BuildWorldCells(Int2 originCell, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                _scratchWorldCells[i] = originCell + _localCells[i];
+            }
+
+        }
+
+        private void BuildInBoardCells(int count)
+        {
+            _scratchInBoardCount = 0;
+            for (int i = 0; i < count; i++)
+            {
+                var world = _scratchWorldCells[i];
+                if (!_grid.IsInside(world))
+                    continue;
+
+                _scratchInBoardCells[_scratchInBoardCount] = world;
+                _scratchInBoardCount++;
+            }
+        }
+
+        private Int2[] CloneScratchWorldCells(int count)
+        {
+            var result = new Int2[count];
+            for (int i = 0; i < count; i++)
+            {
+                result[i] = _scratchWorldCells[i];
+            }
+            return result;
+        }
+
+        private void StoreLastPlacedFromScratch(int count)
+        {
+            if (_lastPlacedWorldCells == null || _lastPlacedWorldCells.Length != count)
+            {
+                _lastPlacedWorldCells = new Int2[count];
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                _lastPlacedWorldCells[i] = _scratchInBoardCells[i];
+            }
+        }
+
+        public Int2[] PlaceCandidateReuse(out int worldCount)
+        {
+            worldCount = 0;
+            if (!_hasCandidate || !_candidateValid) return null;
+
+            int count = _localCells != null ? _localCells.Length : 0;
+            if (count == 0) return Array.Empty<Int2>();
+
+            EnsureScratch(count);
+            BuildWorldCells(_candidateOriginCell, count);
+            BuildInBoardCells(count);
+
+            if (_scratchInBoardCount > 0)
+            {
+                _grid.AddOccupied(_scratchInBoardCells, _scratchInBoardCount);
+                StoreLastPlacedFromScratch(_scratchInBoardCount);
+                _isPlacedOnBoard = true;
+            }
+            else
+            {
+                _lastPlacedWorldCells = null;
+                _isPlacedOnBoard = false;
+            }
+
+            _lastPlacedOriginCell = _candidateOriginCell;
+            worldCount = count;
+            return _scratchWorldCells;
         }
     }
 }

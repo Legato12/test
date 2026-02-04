@@ -4,7 +4,6 @@
 // Pure C# core is in Phase0CoreModel.cs.
 
 using System.Collections.Generic;
-using System.Linq;
 using PrimeTween;
 using UnityEngine;
 
@@ -69,7 +68,6 @@ namespace Phase0
         private Sequence _positionTween;
         private Tween _rotationTween;
 
-        private Int2[] _lastPlacedWorldCells; // cached after placement
         private Renderer[] _cachedPieceRenderers;
         private readonly Dictionary<Vector2Int, SpriteRenderer> _cellRenderers = new();
         private readonly HashSet<Vector2Int> _blockedCells = new();
@@ -97,13 +95,12 @@ namespace Phase0
 
             if (sceneConfig == null)
             {
-                // Optional: try load default config asset by name
-                sceneConfig = Resources.FindObjectsOfTypeAll<SceneConfigSO>().FirstOrDefault();
+                sceneConfig = FindFirstResource<SceneConfigSO>();
             }
 
             if (shapeDefinition == null)
             {
-                shapeDefinition = Resources.FindObjectsOfTypeAll<ShapeDefinitionSO>().FirstOrDefault();
+                shapeDefinition = FindFirstResource<ShapeDefinitionSO>();
             }
 
             int gridSize = sceneConfig != null ? sceneConfig.gridSize : 4;
@@ -168,7 +165,7 @@ namespace Phase0
                 // Find sprite from one tile (placeholder) if none set
                 if (ghostView.tileSprite == null)
                 {
-                    var anyTile = activePieceRoot.GetComponentsInChildren<SpriteRenderer>().FirstOrDefault();
+                    var anyTile = FindFirstChildSpriteRenderer(activePieceRoot);
                     if (anyTile != null) ghostView.tileSprite = anyTile.sprite;
                 }
 
@@ -317,7 +314,7 @@ namespace Phase0
             {
                 // Tap: rotate and revalidate placement (including locked pieces on board).
                 int previousRotation = _brain.RotationCW;
-                bool hadPlacement = _brain.LastPlacedWorldCells != null && _brain.LastPlacedWorldCells.Length > 0;
+                bool hadPlacement = _brain.IsPlacedOnBoard;
                 Int2 originCell = hadPlacement
                     ? _brain.LastPlacedOriginCell
                     : new Int2(_mapping.WorldToCellRound(activePieceRoot.position).x,
@@ -329,7 +326,6 @@ namespace Phase0
                 {
                     if (_brain.TryCommitPlacementAt(originCell, out _))
                     {
-                        _lastPlacedWorldCells = _brain.LastPlacedWorldCells;
                         SyncPlacedCellsFromBrain();
                         ApplyBaseCellColors();
                         UpdatePlacedHighlight();
@@ -371,7 +367,7 @@ namespace Phase0
                 PlaySnapTween(activePieceRoot.position, snapPos, isValid: true);
 
                 // Mark occupied cells
-                _lastPlacedWorldCells = _brain.PlaceCandidate();
+                _brain.PlaceCandidateReuse(out _);
                 _hasEverLocked = true;
                 _lastLockedOriginCell = _brain.LastPlacedOriginCell;
                 _lastLockedRotationCW = _brain.RotationCW;
@@ -885,11 +881,27 @@ namespace Phase0
 
             if (activePieceRoot != null)
             {
-                var anyTile = activePieceRoot.GetComponentsInChildren<SpriteRenderer>().FirstOrDefault();
+                var anyTile = FindFirstChildSpriteRenderer(activePieceRoot);
                 if (anyTile != null) return anyTile.sprite;
             }
 
             return null;
+        }
+
+        private static T FindFirstResource<T>() where T : Object
+        {
+            var items = Resources.FindObjectsOfTypeAll<T>();
+            if (items == null || items.Length == 0) return null;
+            return items[0];
+        }
+
+        private static SpriteRenderer FindFirstChildSpriteRenderer(Transform root)
+        {
+            if (root == null) return null;
+
+            var renderers = root.GetComponentsInChildren<SpriteRenderer>(includeInactive: true);
+            if (renderers == null || renderers.Length == 0) return null;
+            return renderers[0];
         }
 
         private static bool TryParseCellName(string name, out Vector2Int cell)

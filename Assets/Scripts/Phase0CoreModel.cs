@@ -6,7 +6,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Phase0
 {
@@ -91,9 +90,27 @@ namespace Phase0
             foreach (var c in cells) _occupied.Add(c);
         }
 
+        public void AddOccupied(Int2[] cells, int count)
+        {
+            if (cells == null) return;
+            for (int i = 0; i < count; i++)
+            {
+                _occupied.Add(cells[i]);
+            }
+        }
+
         public void RemoveOccupied(IEnumerable<Int2> cells)
         {
             foreach (var c in cells) _occupied.Remove(c);
+        }
+
+        public void RemoveOccupied(Int2[] cells, int count)
+        {
+            if (cells == null) return;
+            for (int i = 0; i < count; i++)
+            {
+                _occupied.Remove(cells[i]);
+            }
         }
 
         public bool IsInside(Int2 c) => c.x >= 0 && c.x < gridSize && c.y >= 0 && c.y < gridSize;

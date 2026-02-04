@@ -275,6 +275,7 @@ namespace Phase0
                     gameFeelFx.SetDragging(true);
                     gameFeelFx.OnPickup();
                 }
+                Phase0Haptics.Pulse(this, count: 1);
             }
 
             // Direct manipulation: once movement begins, piece follows finger with spring delay.
@@ -383,7 +384,7 @@ namespace Phase0
                 {
                     gameFeelFx.OnDropValid();
                 }
-                Phase0Haptics.Pulse(this, count: 1);
+                Phase0Haptics.Pulse(this, count: 2);
             }
             else
             {
@@ -413,7 +414,7 @@ namespace Phase0
 
                 PlaySnapTween(activePieceRoot.position, returnPos, isValid: false);
 
-                Phase0Haptics.Pulse(this, count: 2, intervalSeconds: 0.05f);
+                Phase0Haptics.Pulse(this, count: 3, intervalSeconds: 0.05f);
 
                 SyncPlacedCellsFromBrain();
                 ApplyBaseCellColors();

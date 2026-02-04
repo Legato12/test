@@ -51,6 +51,10 @@ namespace Phase0
         [Tooltip("Tap vs drag threshold in pixels (they suggested ~10 px).")]
         public float tapDragThresholdPx = 10f;
 
+        [Header("Hover")]
+        [Tooltip("Minimum time between hovered cell switches (anti-flicker).")]
+        [Min(0f)] public float hoverDebounceSeconds = 0.05f;
+
         [Header("Feel (view layer will use these)")]
         public float snapDuration = 0.12f;
         [Range(0f, 1f)] public float snapOvershootRatio = 0.20f;

@@ -43,6 +43,10 @@ namespace Phase0
         [Tooltip("How far finger must move away from current cell center (in world units) before we switch to a neighbor cell.")]
         public float cellSwitchHysteresisWorld = 0.32f;
 
+        [Header("Hover Debounce")]
+        [Tooltip("Minimum time between hovered cell switches (anti-flicker).")]
+        public float hoverDebounceSeconds = 0.05f;
+
         private readonly Phase0BoardMapping _mapping = new();
         private readonly Phase0PlacementBrain _brain = new();
 
@@ -77,6 +81,8 @@ namespace Phase0
         private Vector2Int[] _scratchCandidateLocalAll;
         private Vector2Int[] _scratchCandidateLocalInside;
         private int _scratchInsideCount;
+
+        private float _lastHoverSwitchTime;
 
         private void Awake()
         {
@@ -223,6 +229,7 @@ namespace Phase0
             _movedBeyondThreshold = false;
             _dragStarted = false;
             _downScreenPos = pointer.screenPos;
+            _lastHoverSwitchTime = Time.unscaledTime - hoverDebounceSeconds;
 
             _positionTween.Stop();
             _rotationTween.Stop();
@@ -499,11 +506,25 @@ namespace Phase0
             bool shouldSwitch = false;
             if (_brain.HasCandidate)
             {
-                float d = _mapping.DistanceToCellCenter(pointerWorld, new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
-                shouldSwitch = d >= cellSwitchHysteresisWorld;
+                var currentCell = new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y);
+                bool cellChanged = approxCell != currentCell;
+                float d = _mapping.DistanceToCellCenter(pointerWorld, currentCell);
+                float debounce = sceneConfig != null ? sceneConfig.hoverDebounceSeconds : hoverDebounceSeconds;
+                bool debounceReady = Time.unscaledTime - _lastHoverSwitchTime >= debounce;
+
+                shouldSwitch = cellChanged && debounceReady && d >= cellSwitchHysteresisWorld;
+            }
+            else
+            {
+                shouldSwitch = true;
             }
 
+            var beforeOrigin = _brain.HasCandidate ? _brain.CandidateOriginCell : default;
             _brain.UpdateCandidate(new Int2(approxCell.x, approxCell.y), shouldSwitch);
+            if (shouldSwitch && _brain.HasCandidate && _brain.CandidateOriginCell != beforeOrigin)
+            {
+                _lastHoverSwitchTime = Time.unscaledTime;
+            }
 
             UpdateHoverTint();
 

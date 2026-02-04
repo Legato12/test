@@ -21,6 +21,7 @@ MonoBehaviour:
   hoverInvalidCellColor: {r: 1, g: 0.25, b: 0.25, a: 1}
   placedCellColor: {r: 0.25, g: 0.9, b: 0.35, a: 1}
   tapDragThresholdPx: 10
+  hoverDebounceSeconds: 0.05
   snapDuration: 0.18
   snapOvershootRatio: 0.2
   snapOvershootMax: 0.18

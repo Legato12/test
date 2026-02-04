@@ -74,6 +74,8 @@ namespace Phase0
 
         private Vector2Int[] _scratchCandidateAll;
         private Vector2Int[] _scratchCandidateInside;
+        private Vector2Int[] _scratchCandidateLocalAll;
+        private Vector2Int[] _scratchCandidateLocalInside;
         private int _scratchInsideCount;
 
         private void Awake()
@@ -518,7 +520,9 @@ namespace Phase0
 
                 for (int i = 0; i < worldCount; i++)
                 {
-                    var world = _brain.CandidateOriginCell + localCells[i];
+                    var local = localCells[i];
+                    var world = _brain.CandidateOriginCell + local;
+                    _scratchCandidateLocalAll[i] = new Vector2Int(local.x, local.y);
                     _scratchCandidateAll[i] = new Vector2Int(world.x, world.y);
                 }
 
@@ -526,8 +530,12 @@ namespace Phase0
                 for (int i = 0; i < worldCount; i++)
                 {
                     var wc = _scratchCandidateAll[i];
-                    if (_mapping.IsInsideGrid(wc))
-                        _scratchCandidateInside[_scratchInsideCount++] = wc;
+                    if (!_mapping.IsInsideGrid(wc))
+                        continue;
+
+                    _scratchCandidateInside[_scratchInsideCount] = wc;
+                    _scratchCandidateLocalInside[_scratchInsideCount] = _scratchCandidateLocalAll[i];
+                    _scratchInsideCount++;
                 }
 
                 if (_scratchInsideCount == 0 && _brain.CandidateValid)
@@ -540,18 +548,8 @@ namespace Phase0
                 ghostView.transform.position = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
                 // Apply footprint (valid: intersecting, invalid: full footprint)
-                UnityEngine.Vector2Int[] cellsToDraw;
-                int drawCount;
-                if (_brain.CandidateValid)
-                {
-                    cellsToDraw = _scratchCandidateAll;
-                    drawCount = worldCount;
-                }
-                else
-                {
-                    cellsToDraw = _scratchCandidateInside;
-                    drawCount = _scratchInsideCount;
-                }
+                UnityEngine.Vector2Int[] cellsToDraw = _scratchCandidateLocalAll;
+                int drawCount = worldCount;
 
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
                 ghostView.EnsureTiles(drawCount, cellSize);
@@ -897,6 +895,12 @@ namespace Phase0
 
             if (_scratchCandidateInside == null || _scratchCandidateInside.Length != maxCells)
                 _scratchCandidateInside = new Vector2Int[maxCells];
+
+            if (_scratchCandidateLocalAll == null || _scratchCandidateLocalAll.Length != maxCells)
+                _scratchCandidateLocalAll = new Vector2Int[maxCells];
+
+            if (_scratchCandidateLocalInside == null || _scratchCandidateLocalInside.Length != maxCells)
+                _scratchCandidateLocalInside = new Vector2Int[maxCells];
         }
 
         private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, Renderer[] cachedRenderers, float fallbackPaddingWorld, Vector2 fallbackExtents)

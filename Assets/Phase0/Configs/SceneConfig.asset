@@ -1,11 +1,4 @@
-Rotation_GetRotated_ReturnsExpectedCells (0,000s)
----
-Expected and actual are both <Phase0.Int2[4]>
-  Values differ at index [1]
-  Expected: (-1,0)
-  But was:  (1,0)
----
-at Phase0Core_EditModeTests.Rotation_GetRotated_ReturnsExpectedCells () [0x0004b] in C:\Unity\Projects\SB 2.0\Test  Slopity Gaming\test\Assets\Tests\EditMode\Phase0Core_EditModeTests.cs:14%YAML 1.1
+%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -22,6 +15,12 @@ MonoBehaviour:
   gridSize: 4
   cellSize: 1
   cellGap: 0.06
+  globalGridWidth: 0
+  globalGridHeight: 0
+  useRugOverride: 0
+  rugOrigin: {x: 0, y: 0}
+  rugWidth: 4
+  rugHeight: 4
   baseCellColor: {r: 1, g: 1, b: 1, a: 1}
   blockedCellColor: {r: 1, g: 0.25, b: 0.25, a: 1}
   hoverValidCellColor: {r: 0.35, g: 0.75, b: 1, a: 1}
@@ -34,12 +33,6 @@ MonoBehaviour:
   snapOvershootMax: 0.18
   snapOvershootPhase: 0.65
   snapSettleOvershootStrength: 1.35
-  globalGridWidth: 0
-  globalGridHeight: 0
-  useRugOverride: 0
-  rugOrigin: {x: 0, y: 0}
-  rugWidth: 4
-  rugHeight: 4
   bounceBackDuration: 0.22
   bounceBackOvershootRatio: 0.12
   bounceBackOvershootMax: 0.12

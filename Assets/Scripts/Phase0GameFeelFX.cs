@@ -109,9 +109,6 @@ namespace Phase0
 
         private void Start()
         {
-#if SPINE_UNITY
-            LogSpineRenderers();
-#endif
         }
 
         private void OnEnable()
@@ -281,9 +278,6 @@ namespace Phase0
 #if SPINE_UNITY
             TickOutlineCenter();
 #endif
-#if SPINE_UNITY
-            TickDebugForceHatch();
-#endif
         }
 
 #if SPINE_UNITY
@@ -429,7 +423,6 @@ namespace Phase0
         {
             if (!Validate() || !settings.enableBoneFollow)
             {
-                Debug.Log($"Phase0GameFeelFX: OnSpineUpdateWorld skipped - validate:{Validate()}, enableBoneFollow:{settings?.enableBoneFollow}");
                 return;
             }
             if (_headBone == null && _faceBone == null && _earLBone == null && _earRBone == null && _tailBone == null && _mouthBone == null)
@@ -437,16 +430,7 @@ namespace Phase0
 
             if (_headBone != null)
             {
-                float oldRot = _headBone.Rotation;
                 _headBone.Rotation = _headRotDeg;
-                if (Mathf.Abs(oldRot - _headRotDeg) > 0.01f)
-                {
-                    Debug.Log($"Phase0GameFeelFX: Applied head rotation {_headRotDeg:F2}° (was {oldRot:F2}°)");
-                }
-            }
-            else
-            {
-                Debug.LogWarning($"Phase0GameFeelFX: Head bone is null, cannot apply rotation {_headRotDeg:F2}°");
             }
 
             if (_faceBone != null)
@@ -487,32 +471,16 @@ namespace Phase0
         {
             if (_sa == null || _sa.Skeleton == null || settings == null)
             {
-                Debug.LogWarning($"Phase0GameFeelFX: TryBindBones failed - sa:{_sa != null}, skeleton:{_sa?.Skeleton != null}, settings:{settings != null}");
                 return;
             }
-
-            Debug.Log($"Phase0GameFeelFX: TryBindBones - looking for bones in skeleton '{_sa.Skeleton.Data.Name}'");
 
             // Head bone with fallbacks
             string[] headFallbacks = { "head", "Head", "HEAD", "root", "Root", "neck", "Neck" };
             _headBone = FindBoneWithFallback(settings.headBoneName, headFallbacks);
-            string foundHeadName = _headBone?.Data?.Name ?? "null";
-            if (_headBone != null)
-            {
-                Debug.Log($"Phase0GameFeelFX: Head bone found: '{foundHeadName}' (primary: '{settings.headBoneName}')");
-            }
-            else
-            {
-                Debug.LogWarning($"Phase0GameFeelFX: Head bone NOT found! Tried: {settings.headBoneName}, {string.Join(", ", headFallbacks)}");
-            }
 
             // Face bone with fallbacks
             string[] faceFallbacks = { "face", "Face", "FACE", "mouth", "Mouth", "eyes", "Eyes" };
             _faceBone = FindBoneWithFallback(settings.faceBoneName, faceFallbacks);
-            if (_faceBone != null)
-            {
-                Debug.Log($"Phase0GameFeelFX: Face bone found: '{_faceBone.Data.Name}'");
-            }
 
             // Other bones
             if (!string.IsNullOrEmpty(settings.earLBoneName))

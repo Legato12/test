@@ -14,9 +14,9 @@ public class Phase0Core_EditModeTests
         Assert.That(rotated, Is.EqualTo(new[]
         {
             new Int2(0, 0),
-            new Int2(-1, 0),
-            new Int2(-2, 0),
-            new Int2(0, 1)
+            new Int2(1, 0),
+            new Int2(2, 0),
+            new Int2(0, -1)
         }));
     }
 

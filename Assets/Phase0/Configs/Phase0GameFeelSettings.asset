@@ -45,14 +45,14 @@ MonoBehaviour:
   logBoneBindSuccess: 0
   placedOutlineColor: {r: 0.25, g: 0.9, b: 0.35, a: 0.20392157}
   ghostValidOutlineColor: {r: 0.35, g: 0.75, b: 1, a: 0.2901961}
-  ghostInvalidOutlineColor: {r: 1, g: 0.25, b: 0.25, a: 1}
+  ghostInvalidOutlineColor: {r: 1, g: 0.25, b: 0.25, a: 0.5372549}
   enableInvalidHatch: 1
-  hatchColor: {r: 1, g: 0.15, b: 0.15, a: 1}
+  hatchColor: {r: 1, g: 0.15, b: 0.15, a: 0.50980395}
   hatchOpacity: 0.8
-  hatchWidth: 0.18
+  hatchWidth: 0.5
   hatchAngleDeg: 135
-  hatchScale: 10
-  stripesPerCell: 0.7
+  hatchScale: 4
+  stripesPerCell: 3
   hatchStrength: 1
   useWorldSpaceHatch: 0
   hatchScrollVelocity: {x: 0.6, y: -0.2}

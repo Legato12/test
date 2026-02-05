@@ -110,9 +110,6 @@ namespace Phase0
         private void Start()
         {
 #if SPINE_UNITY
-            // Try to switch to Android fallback material if needed
-            TrySwitchToAndroidFallbackMaterial();
-
             // Debug logging for Android hatch shader verification (logged once)
             LogHatchShaderInfo();
 #endif
@@ -703,37 +700,9 @@ namespace Phase0
                 _hatchBlock.SetVector(OutlineCenterId, outlineCenter);
                 renderer.SetPropertyBlock(_hatchBlock);
 
-                // Fallback: If MPB isn't working (e.g., for some Unity versions), directly modify material properties
-                if (_invalidHatchActive && renderer.sharedMaterial != null)
-                {
-                    var mat = renderer.sharedMaterial;
-                    if (mat.HasProperty("_HatchStrength"))
-                    {
-                        // Create a material instance if it's shared
-                        if (renderer.sharedMaterial == mat)
-                        {
-                            mat = new Material(mat);
-                            renderer.material = mat;
-                        }
-                        mat.SetFloat("_HatchStrength", hatchStrength);
-                        mat.SetColor("_HatchColor", settings != null ? settings.hatchColor : Color.black);
-                        mat.SetFloat("_HatchScale", hatchScale);
-                        mat.SetFloat("_HatchWidth", settings != null ? settings.hatchWidth : 0.18f);
-                        mat.SetFloat("_HatchAngleDeg", settings != null ? settings.hatchAngleDeg : 45f);
-                        mat.SetFloat("_HatchOpacity", settings != null ? settings.hatchOpacity : 0.8f);
-                        mat.SetFloat("_HatchUseWorldSpace", useWorldSpace);
-                        mat.SetVector("_HatchScrollVelocity", hatchScrollVelocity);
-                        mat.SetFloat("_OutlineEnabled", outlineEnabled ? 1f : 0f);
-                        mat.SetColor("_OutlineColor", outlineColor);
-                        mat.SetFloat("_OutlineThicknessPx", outlineThickness);
-                        mat.SetVector("_OutlineCenterWS", outlineCenter);
-
-                        if (_invalidHatchActive)
-                        {
-                            Debug.Log($"Phase0GameFeelFX: Applied fallback material modification for hatch strength={hatchStrength}");
-                        }
-                    }
-                }
+                // NOTE:
+                // Avoid per-drag allocations: do NOT instantiate / modify renderer.material here.
+                // MaterialPropertyBlock is the supported, allocation-free path for per-renderer hatch params.
 
                 // Additional debug: read back the value to verify MPB application
                 renderer.GetPropertyBlock(_hatchBlock);
@@ -871,10 +840,6 @@ namespace Phase0
                 return;
             }
 
-            // Force Android fallback for Android platform (hatch overlay doesn't work on Android)
-            bool forceAndroidFallback = Application.platform == RuntimePlatform.Android ||
-                                       (Application.platform == RuntimePlatform.WindowsEditor && UnityEditor.EditorUserBuildSettings.activeBuildTarget == UnityEditor.BuildTarget.Android);
-
             // Check if current material needs fallback
             var renderers = _sa.GetComponents<Renderer>();
             if (renderers == null || renderers.Length == 0) return;
@@ -893,14 +858,12 @@ namespace Phase0
                     var mat = mats[m];
                     if (mat == null) continue;
 
-                    // Check if this is our SpineHatchOverlay shader and if it needs fallback
-                    if (mat.shader != null && mat.shader.name.Contains("SpineHatchOverlay") &&
-                        (forceAndroidFallback || !mat.shader.isSupported))
+                    // Check if this is our SpineHatchOverlay shader and if it's not supported
+                    if (mat.shader != null && mat.shader.name.Contains("SpineHatchOverlay") && !mat.shader.isSupported)
                     {
                         mats[m] = fallbackMat;
                         switched = true;
-                        string reason = forceAndroidFallback ? "forced for Android platform" : "shader not supported";
-                        Debug.Log($"Phase0GameFeelFX: Switched to Android fallback material ({reason})");
+                        Debug.Log($"Phase0GameFeelFX: Switched to Android fallback material (shader not supported)");
                         break;
                     }
                 }
@@ -908,15 +871,6 @@ namespace Phase0
                 if (switched)
                 {
                     renderer.sharedMaterials = mats;
-                    // Also update the primary material in Resources folder if needed
-                    if (Application.isEditor)
-                    {
-                        string fallbackPath = "Assets/Resources/CatMesh_Material_AndroidFallback.mat";
-                        if (UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(fallbackPath) != null)
-                        {
-                            _sa.GetComponent<Renderer>().sharedMaterial = fallbackMat;
-                        }
-                    }
                     break; // Switch only the main renderer
                 }
             }

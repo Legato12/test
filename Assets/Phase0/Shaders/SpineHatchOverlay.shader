@@ -930,8 +930,17 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 					output.pos = calculateLocalPos(input.vertex);
 					output.texcoord = calculateTextureCoord(input.texcoord);
 					output.color = calculateVertexColor(input.color);
-					output.objectPos = input.vertex.xy;
-					output.worldPos = calculateWorldPos(input.vertex).xyz;
+
+					// IMPORTANT (Android/Vulkan/GLES): Spine meshes often use large local coordinates (pixel-like units).
+					// In mobile fragment shaders, these can be stored/interpolated at mediump precision, which quantizes
+					// the values so much that frac(v) becomes constant => hatch pattern disappears.
+					//
+					// Fix: build hatch coordinates in *world units* but still anchored to the object, by subtracting
+					// the object origin from the world position. This keeps numbers small and stable across platforms.
+					float4 wpos4 = calculateWorldPos(input.vertex);
+					output.worldPos = wpos4.xyz;
+					float2 objOriginWS = float2(unity_ObjectToWorld._m03, unity_ObjectToWorld._m13);
+					output.objectPos = wpos4.xy - objOriginWS;
 				#if defined(_TINT_BLACK_ON)
 					output.darkColor = GammaToTargetSpace(half3(input.tintBlackRG.r, input.tintBlackRG.g, input.tintBlackB.r))
 						+ (_Black.rgb * input.color.a);

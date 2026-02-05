@@ -51,6 +51,20 @@ namespace Phase0
             return rotated;
         }
 
+        // Rotate pre-computed offsets clockwise around (0,0). Do NOT normalize; allow negative coords.
+        public static Int2[] GetRotatedOffsets(Int2[] baseOffsets, int rotationIndexCW)
+        {
+            rotationIndexCW = Mod4(rotationIndexCW);
+
+            var rotated = new Int2[baseOffsets.Length];
+            for (int i = 0; i < baseOffsets.Length; i++)
+            {
+                rotated[i] = RotateOffsetCW(baseOffsets[i], rotationIndexCW);
+            }
+
+            return rotated;
+        }
+
         private static int Mod4(int x) => ((x % 4) + 4) % 4;
 
         // rotationIndexCW: 0,1,2,3 clockwise quarter-turns
@@ -64,6 +78,18 @@ namespace Phase0
                 r = new Int2(r.y, -r.x);
             }
             return r + pivot;
+        }
+
+        // Rotate offset clockwise around (0,0)
+        private static Int2 RotateOffsetCW(Int2 offset, int rotationIndexCW)
+        {
+            Int2 r = offset;
+            // CW: (x,y)->(y,-x)
+            for (int i = 0; i < rotationIndexCW; i++)
+            {
+                r = new Int2(r.y, -r.x);
+            }
+            return r;
         }
     }
 

@@ -381,6 +381,9 @@ namespace Phase0
                 else
                 {
                     var approx = _globalMapping.WorldToCellFloor(activePieceRoot.position);
+                    // Clamp to global grid bounds
+                    approx.x = Mathf.Clamp(approx.x, 0, _globalMapping.width - 1);
+                    approx.y = Mathf.Clamp(approx.y, 0, _globalMapping.height - 1);
                     originCell = new Int2(approx.x, approx.y);
                 }
 
@@ -507,7 +510,7 @@ namespace Phase0
                 : new Color(0.25f, 0.9f, 0.35f, 0.9f);
 
             // LastPlacedWorldCells is now already rug-local, so use directly
-            var localCells = _brain.LastPlacedWorldCells;
+            var localCells = ToVector2IntArray(_brain.LastPlacedWorldCells);
 
             placedHighlightView.SetCells(localCells, _rugMapping, cellSize, color);
         }
@@ -570,6 +573,10 @@ namespace Phase0
         private void UpdateCandidateAndGhost(Vector2 pointerWorld)
         {
             var approxCell = _globalMapping.WorldToCellFloor(pointerWorld);
+
+            // Clamp to global grid bounds
+            approxCell.x = Mathf.Clamp(approxCell.x, 0, _globalMapping.width - 1);
+            approxCell.y = Mathf.Clamp(approxCell.y, 0, _globalMapping.height - 1);
 
             bool shouldSwitch = false;
             if (_brain.HasCandidate)

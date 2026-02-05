@@ -16,6 +16,7 @@ namespace Phase0 {
         private GridModel _grid;
 
         private Int2[] _baseCells = Array.Empty<Int2>();
+        private Int2[] _baseOffsets = Array.Empty<Int2>();
         private Int2 _pivot;
         private int _rotationCW;
         private Int2[] _localCells = Array.Empty<Int2>();
@@ -97,6 +98,7 @@ namespace Phase0 {
             _baseCells = baseCells ?? Array.Empty<Int2>();
             _pivot = pivot;
             _rotationCW = 0;
+            RecomputeBaseOffsets();
             RecomputeLocalCells();
 
             _hasCandidate = false;
@@ -186,6 +188,7 @@ namespace Phase0 {
         public void SetShape(Int2[] baseCells, Int2 pivot) {
             _baseCells = baseCells ?? Array.Empty<Int2>();
             _pivot = pivot;
+            RecomputeBaseOffsets();
             RecomputeLocalCells();
         }
 
@@ -295,6 +298,18 @@ namespace Phase0 {
             return _scratchWorldCells;
         }
 
+        private void RecomputeBaseOffsets() {
+            if (_baseCells == null || _baseCells.Length == 0) {
+                _baseOffsets = Array.Empty<Int2>();
+                return;
+            }
+
+            _baseOffsets = new Int2[_baseCells.Length];
+            for (int i = 0; i < _baseCells.Length; i++) {
+                _baseOffsets[i] = _baseCells[i] - _pivot;
+            }
+        }
+
         private void RecomputeLocalCells() {
             if (_baseCells == null || _baseCells.Length == 0) {
                 _localCells = new[] { Int2.zero };
@@ -302,7 +317,7 @@ namespace Phase0 {
                 return;
             }
 
-            _localCells = ShapeRotation.GetRotated(_baseCells, _pivot, _rotationCW);
+            _localCells = ShapeRotation.GetRotatedOffsets(_baseOffsets, _rotationCW);
             EnsureScratch(_localCells.Length);
         }
 

@@ -92,4 +92,55 @@ public class TestVerification
         Console.WriteLine($"Test PASSED: {ok && brain.HasLockedPlacement && !brain.IsPlacedOnBoard && brain.LastLockedRugCellCount == 0}");
         Console.WriteLine();
     }
+
+    public static void Test_Rotation_AnchorBased()
+    {
+        Console.WriteLine("Testing: Rotation_IsAnchorBased_DoesNotChangeAnchorCell");
+
+        var brain = new Phase0PlacementBrain();
+        var rug = new IntRect(new Int2(0, 0), 30, 30);
+
+        brain.Initialize(
+            globalWidth: 30,
+            globalHeight: 30,
+            rugRect: rug,
+            blockedCellsGlobal: new List<Int2>(),
+            occupiedCellsGlobal: new List<Int2>(),
+            baseCells: L4_BaseCells,
+            pivot: Int2.zero);
+
+        var anchor = new Int2(10, 10);
+        var ok1 = brain.TryCommitPlacementAt(anchor, out _);
+        Console.WriteLine($"Initial placement at {anchor}: {ok1}");
+
+        brain.OnPickup();
+        brain.RotateCW();
+
+        var ok2 = brain.TryCommitPlacementAt(anchor, out _);
+        Console.WriteLine($"Placement after rotation at same anchor {anchor}: {ok2}");
+        Console.WriteLine($"LastLockedAnchorCell: {brain.LastLockedAnchorCell}");
+
+        // Anchor cell should be stable during rotation
+        bool anchorStable = brain.LastLockedAnchorCell == anchor;
+
+        // Pivot cell (0,0 relative) should still be occupied
+        bool pivotOccupied = false;
+        if (brain.LastLockedWorldCells != null)
+        {
+            for (int i = 0; i < brain.LastLockedWorldCells.Length; i++)
+            {
+                if (brain.LastLockedWorldCells[i] == anchor)
+                {
+                    pivotOccupied = true;
+                    break;
+                }
+            }
+        }
+
+        Console.WriteLine($"Anchor stable: {anchorStable}");
+        Console.WriteLine($"Pivot cell occupied: {pivotOccupied}");
+        Console.WriteLine($"Test PASSED: {ok1 && ok2 && anchorStable && pivotOccupied}");
+        Console.WriteLine();
+    }
+    }
 }

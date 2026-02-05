@@ -109,6 +109,13 @@ namespace Phase0
 
         private void Start()
         {
+#if SPINE_UNITY
+            // Try to switch to Android fallback material if needed
+            TrySwitchToAndroidFallbackMaterial();
+
+            // Debug logging for Android hatch shader verification (logged once)
+            LogHatchShaderInfo();
+#endif
         }
 
         private void OnEnable()
@@ -149,6 +156,16 @@ namespace Phase0
             if (_invalidHatchActive == enabled) return;
             _invalidHatchActive = enabled;
             ApplyHatchOverlay();
+
+            // Debug log hatch state changes
+            if (enabled)
+            {
+                Debug.Log($"Phase0GameFeelFX: Hatch ACTIVATED - angle={settings?.hatchAngleDeg ?? 45f} strength={settings?.hatchStrength ?? 0f}");
+            }
+            else
+            {
+                Debug.Log("Phase0GameFeelFX: Hatch DEACTIVATED");
+            }
         }
 
         public void SetInvalidVisual(bool invalid)
@@ -274,6 +291,7 @@ namespace Phase0
 #if SPINE_UNITY
             TickIdle();
             TickBoneFollow();
+            TickDebugForceHatch();
 #endif
 #if SPINE_UNITY
             TickOutlineCenter();
@@ -660,6 +678,12 @@ namespace Phase0
             float outlineThickness = settings != null ? Mathf.Max(0f, settings.outlineThicknessPx) : 0f;
             Vector4 outlineCenter = ResolveOutlineCenterVector(outlineEnabled);
 
+            // Debug logging for hatch application
+            if (_invalidHatchActive)
+            {
+                Debug.Log($"Phase0GameFeelFX: Applying hatch - strength={hatchStrength}, scale={hatchScale}, angle={settings?.hatchAngleDeg ?? 45f}, renderers={_hatchRenderers.Length}");
+            }
+
             for (int i = 0; i < _hatchRenderers.Length; i++)
             {
                 var renderer = _hatchRenderers[i];
@@ -678,6 +702,46 @@ namespace Phase0
                 _hatchBlock.SetFloat(OutlineThicknessId, outlineThickness);
                 _hatchBlock.SetVector(OutlineCenterId, outlineCenter);
                 renderer.SetPropertyBlock(_hatchBlock);
+
+                // Fallback: If MPB isn't working (e.g., for some Unity versions), directly modify material properties
+                if (_invalidHatchActive && renderer.sharedMaterial != null)
+                {
+                    var mat = renderer.sharedMaterial;
+                    if (mat.HasProperty("_HatchStrength"))
+                    {
+                        // Create a material instance if it's shared
+                        if (renderer.sharedMaterial == mat)
+                        {
+                            mat = new Material(mat);
+                            renderer.material = mat;
+                        }
+                        mat.SetFloat("_HatchStrength", hatchStrength);
+                        mat.SetColor("_HatchColor", settings != null ? settings.hatchColor : Color.black);
+                        mat.SetFloat("_HatchScale", hatchScale);
+                        mat.SetFloat("_HatchWidth", settings != null ? settings.hatchWidth : 0.18f);
+                        mat.SetFloat("_HatchAngleDeg", settings != null ? settings.hatchAngleDeg : 45f);
+                        mat.SetFloat("_HatchOpacity", settings != null ? settings.hatchOpacity : 0.8f);
+                        mat.SetFloat("_HatchUseWorldSpace", useWorldSpace);
+                        mat.SetVector("_HatchScrollVelocity", hatchScrollVelocity);
+                        mat.SetFloat("_OutlineEnabled", outlineEnabled ? 1f : 0f);
+                        mat.SetColor("_OutlineColor", outlineColor);
+                        mat.SetFloat("_OutlineThicknessPx", outlineThickness);
+                        mat.SetVector("_OutlineCenterWS", outlineCenter);
+
+                        if (_invalidHatchActive)
+                        {
+                            Debug.Log($"Phase0GameFeelFX: Applied fallback material modification for hatch strength={hatchStrength}");
+                        }
+                    }
+                }
+
+                // Additional debug: read back the value to verify MPB application
+                renderer.GetPropertyBlock(_hatchBlock);
+                float readBackStrength = _hatchBlock.GetFloat(HatchStrengthId);
+                if (_invalidHatchActive && Mathf.Abs(readBackStrength - hatchStrength) > 0.001f)
+                {
+                    Debug.LogWarning($"Phase0GameFeelFX: MPB readback failed! Expected hatchStrength={hatchStrength}, got {readBackStrength}");
+                }
             }
 #endif
         }
@@ -793,6 +857,130 @@ namespace Phase0
             }
         }
 
+        private void TrySwitchToAndroidFallbackMaterial()
+        {
+#if SPINE_UNITY
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null) return;
+
+            // Load the fallback material
+            Material fallbackMat = Resources.Load<Material>("CatMesh_Material_AndroidFallback");
+            if (fallbackMat == null)
+            {
+                Debug.LogWarning("Phase0GameFeelFX: Android fallback material not found in Resources.");
+                return;
+            }
+
+            // Force Android fallback for Android platform (hatch overlay doesn't work on Android)
+            bool forceAndroidFallback = Application.platform == RuntimePlatform.Android ||
+                                       (Application.platform == RuntimePlatform.WindowsEditor && UnityEditor.EditorUserBuildSettings.activeBuildTarget == UnityEditor.BuildTarget.Android);
+
+            // Check if current material needs fallback
+            var renderers = _sa.GetComponents<Renderer>();
+            if (renderers == null || renderers.Length == 0) return;
+
+            bool switched = false;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null) continue;
+
+                var mats = renderer.sharedMaterials;
+                if (mats == null) continue;
+
+                for (int m = 0; m < mats.Length; m++)
+                {
+                    var mat = mats[m];
+                    if (mat == null) continue;
+
+                    // Check if this is our SpineHatchOverlay shader and if it needs fallback
+                    if (mat.shader != null && mat.shader.name.Contains("SpineHatchOverlay") &&
+                        (forceAndroidFallback || !mat.shader.isSupported))
+                    {
+                        mats[m] = fallbackMat;
+                        switched = true;
+                        string reason = forceAndroidFallback ? "forced for Android platform" : "shader not supported";
+                        Debug.Log($"Phase0GameFeelFX: Switched to Android fallback material ({reason})");
+                        break;
+                    }
+                }
+
+                if (switched)
+                {
+                    renderer.sharedMaterials = mats;
+                    // Also update the primary material in Resources folder if needed
+                    if (Application.isEditor)
+                    {
+                        string fallbackPath = "Assets/Resources/CatMesh_Material_AndroidFallback.mat";
+                        if (UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(fallbackPath) != null)
+                        {
+                            _sa.GetComponent<Renderer>().sharedMaterial = fallbackMat;
+                        }
+                    }
+                    break; // Switch only the main renderer
+                }
+            }
+#endif
+        }
+
+        private void LogHatchShaderInfo()
+        {
+#if SPINE_UNITY
+            if (_sa == null) _sa = ResolveSkeletonAnimation();
+            if (_sa == null)
+            {
+                Debug.Log("Phase0GameFeelFX: No SkeletonAnimation found for hatch shader logging.");
+                return;
+            }
+
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0) CacheHatchRenderers();
+            if (_hatchRenderers == null || _hatchRenderers.Length == 0)
+            {
+                Debug.Log("Phase0GameFeelFX: No hatch renderers found for logging.");
+                return;
+            }
+
+            // Log material and shader info
+            for (int i = 0; i < _hatchRenderers.Length; i++)
+            {
+                var renderer = _hatchRenderers[i];
+                if (renderer == null) continue;
+
+                var mats = renderer.sharedMaterials;
+                if (mats == null) continue;
+
+                for (int m = 0; m < mats.Length; m++)
+                {
+                    var mat = mats[m];
+                    if (mat == null) continue;
+
+                    string matName = mat.name;
+                    string shaderName = mat.shader != null ? mat.shader.name : "null";
+                    bool isSupported = mat.shader != null && mat.shader.isSupported;
+
+                    Debug.Log($"Phase0GameFeelFX: Hatch Mat '{matName}' Shader '{shaderName}' isSupported={isSupported}");
+                }
+            }
+
+            // Apply hatch and read back to verify MPB application
+            ApplyHatchOverlay();
+
+            if (_hatchBlock == null) _hatchBlock = new MaterialPropertyBlock();
+            for (int i = 0; i < _hatchRenderers.Length; i++)
+            {
+                var renderer = _hatchRenderers[i];
+                if (renderer == null) continue;
+
+                renderer.GetPropertyBlock(_hatchBlock);
+                float readBackStrength = _hatchBlock.GetFloat(HatchStrengthId);
+                float readBackAngle = _hatchBlock.GetFloat(HatchAngleId);
+
+                Debug.Log($"Phase0GameFeelFX: MPB readback - HatchStrength={readBackStrength} HatchAngleDeg={readBackAngle}");
+                break; // Log only first renderer to avoid spam
+            }
+#endif
+        }
+
         private void LogSpineRenderers()
         {
             if (_sa == null) _sa = ResolveSkeletonAnimation();
@@ -893,6 +1081,7 @@ namespace Phase0
         [SerializeField] private float sf2_dragTiltSpeedForMax = 6f;
 
         [Header("SuperFix2: Spine Impact (valid drop)")]
+#pragma warning disable 0414 // Disable "assigned but never used" warnings for configurable fields
         [SerializeField] private bool sf2_enableSpineImpact = true;
         [SerializeField] private string sf2_impactAnimationName = "Impact";
         [SerializeField] private int sf2_impactTrackIndex = 1;
@@ -900,6 +1089,7 @@ namespace Phase0
         [SerializeField, Range(0f, 1f)] private float sf2_impactMinAlpha = 0.35f;
         [SerializeField, Range(0f, 1f)] private float sf2_impactMaxAlpha = 1f;
         [SerializeField] private float sf2_impactMixDuration = 0.06f;
+#pragma warning restore 0414
 
         // ---- cached runtime ----
         private bool sf2_isDragging;

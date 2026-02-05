@@ -106,7 +106,7 @@ namespace Phase0
 
             if (sceneConfig == null)
             {
-                sceneConfig = FindFirstResource<SceneConfigSO>();
+                sceneConfig = Resources.Load<SceneConfigSO>("SceneConfig");
             }
 
             if (shapeDefinition == null)

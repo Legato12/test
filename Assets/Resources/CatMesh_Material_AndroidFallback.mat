@@ -7,15 +7,13 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: CatMesh_Material
+  m_Name: CatMesh_Material_AndroidFallback
   m_Shader: {fileID: 4800000, guid: 93c2138b4c272b94696045a6f9be4e3d, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - _ALPHAPREMULTIPLY_VERTEX_ONLY
-  m_InvalidKeywords:
-  - _FULLRANGE_HARD_RAMP
-  - _USE8NEIGHBOURHOOD_ON
+  m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -25,7 +23,7 @@ Material:
     IGNOREPROJECTOR: true
     RenderType: Transparent
   disabledShaderPasses: []
-  m_LockedProperties: 
+  m_LockedProperties:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -59,7 +57,7 @@ Material:
     - _OutlineOpaqueAlpha: 1
     - _OutlineReferenceTexWidth: 1024
     - _OutlineSmoothness: 1
-    - _OutlineThicknessPx: 3
+    - _OutlineThicknessPx: 2
     - _OutlineWidth: 3
     - _RenderQueue: 0
     - _Saturation: 1
@@ -76,9 +74,8 @@ Material:
     m_Colors:
     - _Black: {r: 0, g: 0, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _HatchColor: {r: 0, g: 0, b: 0, a: 1}
+    - _HatchColor: {r: 1, g: 0.15, b: 0.15, a: 1}
     - _HatchScrollVelocity: {r: 0, g: 0, b: 0, a: 0}
     - _OutlineCenterWS: {r: 0, g: 0, b: 0, a: 0}
-    - _OutlineColor: {r: 1, g: 1, b: 0, a: 1}
+    - _OutlineColor: {r: 0.95, g: 0.25, b: 0.18, a: 1}
     - _OverlayColor: {r: 0, g: 0, b: 0, a: 0}
-  m_BuildTextureStacks: []

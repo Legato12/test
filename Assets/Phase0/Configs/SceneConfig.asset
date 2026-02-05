@@ -1,4 +1,11 @@
-%YAML 1.1
+Rotation_GetRotated_ReturnsExpectedCells (0,000s)
+---
+Expected and actual are both <Phase0.Int2[4]>
+  Values differ at index [1]
+  Expected: (-1,0)
+  But was:  (1,0)
+---
+at Phase0Core_EditModeTests.Rotation_GetRotated_ReturnsExpectedCells () [0x0004b] in C:\Unity\Projects\SB 2.0\Test  Slopity Gaming\test\Assets\Tests\EditMode\Phase0Core_EditModeTests.cs:14%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:

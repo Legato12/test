@@ -37,7 +37,7 @@ public class Phase0GlobalGridRules_EditModeTests
     }
 
     [Test]
-    public void Placement_InRug_ReportsRugLocalCells()
+    public void Placement_InRug_ReportsRugCellsInGlobalSpace()
     {
         var brain = new Phase0PlacementBrain();
         var rug = new IntRect(new Int2(5, 2), 4, 4);
@@ -51,14 +51,20 @@ public class Phase0GlobalGridRules_EditModeTests
             baseCells: L4_BaseCells,
             pivot: Int2.zero);
 
-        // Anchor at rug origin => rug-local cells match base cells.
+        // Anchor at rug origin => global cells are anchor + base cells.
         var ok = brain.TryCommitPlacementAt(new Int2(5, 2), out _);
 
         Assert.True(ok);
         Assert.True(brain.IsPlacedOnBoard);
         Assert.That(brain.LastLockedRugCellCount, Is.EqualTo(4));
 
-        Assert.That(brain.LastLockedRugCells, Is.EqualTo(L4_BaseCells));
+        Assert.That(brain.LastLockedRugCells, Is.EqualTo(new[]
+        {
+            new Int2(5, 2),
+            new Int2(5, 3),
+            new Int2(5, 4),
+            new Int2(6, 2)
+        }));
     }
 
     [Test]

@@ -6,7 +6,7 @@ public class Phase0Core_EditModeTests
     [Test]
     public void Rotation_GetRotated_ReturnsExpectedCells()
     {
-        var baseCells = new[] { new Int2(0, 0), new Int2(1, 0), new Int2(0, 1) };
+        var baseCells = new[] { new Int2(0, 0), new Int2(0, 1), new Int2(0, 2), new Int2(1, 0) };
         var pivot = Int2.zero;
 
         var rotated = ShapeRotation.GetRotated(baseCells, pivot, rotationIndexCW: 1);
@@ -14,8 +14,9 @@ public class Phase0Core_EditModeTests
         Assert.That(rotated, Is.EqualTo(new[]
         {
             new Int2(0, 0),
-            new Int2(0, -1),
-            new Int2(1, 0)
+            new Int2(-1, 0),
+            new Int2(-2, 0),
+            new Int2(0, 1)
         }));
     }
 
@@ -48,7 +49,7 @@ public class Phase0Core_EditModeTests
         var grid = new GridModel(4);
         grid.SetBlocked(new[] { new Int2(1, 1) });
 
-        var shape = new[] { new Int2(0, 0), new Int2(1, 0), new Int2(0, 1) };
+        var shape = new[] { new Int2(0, 0), new Int2(0, 1), new Int2(0, 2), new Int2(1, 0) };
 
         var canPlace = grid.CanPlace(new Int2(1, 1), shape, out _);
 
@@ -61,7 +62,7 @@ public class Phase0Core_EditModeTests
         var grid = new GridModel(4);
         grid.AddOccupied(new[] { new Int2(2, 0) });
 
-        var shape = new[] { new Int2(0, 0), new Int2(1, 0), new Int2(0, 1) };
+        var shape = new[] { new Int2(0, 0), new Int2(0, 1), new Int2(0, 2), new Int2(1, 0) };
 
         var canPlace = grid.CanPlace(new Int2(2, 0), shape, out _);
 

@@ -58,8 +58,8 @@ namespace Phase0 {
         public bool HasLockedPlacement => _isLocked;
         public Int2 LastLockedAnchorCell => _lastLockedOriginCell;
         public Int2[] LastLockedWorldCells => _lastLockedWorldCellsAll;
-        public int LastLockedRugCellCount => _lastLockedRugLocalCells != null ? _lastLockedRugLocalCells.Length : 0;
-        public Int2[] LastLockedRugCells => _lastLockedRugLocalCells;
+        public int LastLockedRugCellCount => _lastLockedWorldCellsInRug != null ? _lastLockedWorldCellsInRug.Length : 0;
+        public Int2[] LastLockedRugCells => _lastLockedWorldCellsInRug;
 
         /// <summary>
         /// Cells intersecting the rug (rug-local coords). Use for UI only.

@@ -60,6 +60,13 @@ namespace Phase0
             return new Vector2Int(Mathf.RoundToInt(dx), Mathf.RoundToInt(dy));
         }
 
+        public Vector2Int WorldToCellFloor(Vector2 world)
+        {
+            var dx = (world.x - cell00World.x) / cellStep.x;
+            var dy = (world.y - cell00World.y) / cellStep.y;
+            return new Vector2Int(Mathf.FloorToInt(dx), Mathf.FloorToInt(dy));
+        }
+
         public bool IsInsideGrid(Vector2Int cell)
         {
             return cell.x >= 0 && cell.x < width && cell.y >= 0 && cell.y < height;

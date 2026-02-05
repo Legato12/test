@@ -334,10 +334,18 @@ namespace Phase0
 
         private void TriggerNoShake()
         {
-            if (settings == null || !settings.enableBoneFollow) return;
+            if (settings == null || !settings.enableBoneFollow)
+            {
+                Debug.LogWarning($"Phase0GameFeelFX: TriggerNoShake skipped - settings null or bone follow disabled");
+                return;
+            }
+
             _noShakeT = 0f;
             _noShakeDur = Mathf.Max(0.01f, settings.headNoShakeDuration);
             _noShakeAmpDeg = settings.headNoShakeDegrees;
+
+            Debug.Log($"Phase0GameFeelFX: TriggerNoShake started - duration {_noShakeDur}s, amplitude {_noShakeAmpDeg}°");
+            Debug.Log($"Phase0GameFeelFX: Head bone found: {_headBone != null}, bone name: {_headBone?.Data?.Name ?? "null"}");
         }
 
         private void TickNoShake()
@@ -350,10 +358,15 @@ namespace Phase0
 #if SPINE_UNITY
         private void TickBoneFollow()
         {
-            if (!Validate() || !settings.enableBoneFollow) return;
+            if (!Validate() || !settings.enableBoneFollow)
+            {
+                Debug.Log($"Phase0GameFeelFX: TickBoneFollow skipped - validate:{Validate()}, enableBoneFollow:{settings?.enableBoneFollow}");
+                return;
+            }
             if (_sa == null) _sa = ResolveSkeletonAnimation();
             if (_sa == null || _sa.Skeleton == null)
             {
+                Debug.Log($"Phase0GameFeelFX: TickBoneFollow skipped - sa:{_sa != null}, skeleton:{_sa?.Skeleton != null}");
                 return;
             }
 
@@ -381,10 +394,14 @@ namespace Phase0
             {
                 float u = Mathf.Clamp01(_noShakeT / _noShakeDur);
                 noShake = Mathf.Sin(u * Mathf.PI * 4f) * _noShakeAmpDeg * (1f - u);
+                Debug.Log($"Phase0GameFeelFX: NoShake active - u:{u:F2}, noShake:{noShake:F2}°");
             }
 
             float a = 1f - Mathf.Exp(-settings.headFollowStiffness * dt);
+            float oldHeadRot = _headRotDeg;
             _headRotDeg = Mathf.Lerp(_headRotDeg, desiredHead + noShake, a);
+
+            Debug.Log($"Phase0GameFeelFX: Head rotation - desired:{desiredHead:F2}°, noShake:{noShake:F2}°, final:{_headRotDeg:F2}° (was {oldHeadRot:F2}°)");
 
             float desiredFaceX = Mathf.Clamp(kx * settings.faceBob,
                 settings.faceOffsetXMinMax.x, settings.faceOffsetXMinMax.y);
@@ -420,10 +437,28 @@ namespace Phase0
 
         private void OnSpineUpdateWorld(ISkeletonAnimation anim)
         {
-            if (!Validate() || !settings.enableBoneFollow) return;
+            if (!Validate() || !settings.enableBoneFollow)
+            {
+                Debug.Log($"Phase0GameFeelFX: OnSpineUpdateWorld skipped - validate:{Validate()}, enableBoneFollow:{settings?.enableBoneFollow}");
+                return;
+            }
             if (_headBone == null && _faceBone == null && _earLBone == null && _earRBone == null && _tailBone == null && _mouthBone == null)
                 TryBindBones(logSuccess: false);
-            if (_headBone != null) _headBone.Rotation = _headRotDeg;
+
+            if (_headBone != null)
+            {
+                float oldRot = _headBone.Rotation;
+                _headBone.Rotation = _headRotDeg;
+                if (Mathf.Abs(oldRot - _headRotDeg) > 0.01f)
+                {
+                    Debug.Log($"Phase0GameFeelFX: Applied head rotation {_headRotDeg:F2}° (was {oldRot:F2}°)");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"Phase0GameFeelFX: Head bone is null, cannot apply rotation {_headRotDeg:F2}°");
+            }
+
             if (_faceBone != null)
             {
                 _faceBone.X = _faceX;
@@ -433,25 +468,49 @@ namespace Phase0
 
         private void TryBindBones(bool logSuccess)
         {
-            if (_sa == null || _sa.Skeleton == null || settings == null) return;
+            if (_sa == null || _sa.Skeleton == null || settings == null)
+            {
+                Debug.LogWarning($"Phase0GameFeelFX: TryBindBones failed - sa:{_sa != null}, skeleton:{_sa?.Skeleton != null}, settings:{settings != null}");
+                return;
+            }
+
+            Debug.Log($"Phase0GameFeelFX: TryBindBones - looking for bones in skeleton '{_sa.Skeleton.Data.Name}'");
 
             if (!string.IsNullOrEmpty(settings.headBoneName))
+            {
                 _headBone = _sa.Skeleton.FindBone(settings.headBoneName);
+                Debug.Log($"Phase0GameFeelFX: Head bone '{settings.headBoneName}' -> {_headBone != null}");
+            }
 
             if (!string.IsNullOrEmpty(settings.faceBoneName))
+            {
                 _faceBone = _sa.Skeleton.FindBone(settings.faceBoneName);
+                Debug.Log($"Phase0GameFeelFX: Face bone '{settings.faceBoneName}' -> {_faceBone != null}");
+            }
 
             if (!string.IsNullOrEmpty(settings.earLBoneName))
+            {
                 _earLBone = _sa.Skeleton.FindBone(settings.earLBoneName);
+                Debug.Log($"Phase0GameFeelFX: EarL bone '{settings.earLBoneName}' -> {_earLBone != null}");
+            }
 
             if (!string.IsNullOrEmpty(settings.earRBoneName))
+            {
                 _earRBone = _sa.Skeleton.FindBone(settings.earRBoneName);
+                Debug.Log($"Phase0GameFeelFX: EarR bone '{settings.earRBoneName}' -> {_earRBone != null}");
+            }
 
             if (!string.IsNullOrEmpty(settings.tailBoneName))
+            {
                 _tailBone = _sa.Skeleton.FindBone(settings.tailBoneName);
+                Debug.Log($"Phase0GameFeelFX: Tail bone '{settings.tailBoneName}' -> {_tailBone != null}");
+            }
 
             if (!string.IsNullOrEmpty(settings.mouthBoneName))
+            {
                 _mouthBone = _sa.Skeleton.FindBone(settings.mouthBoneName);
+                Debug.Log($"Phase0GameFeelFX: Mouth bone '{settings.mouthBoneName}' -> {_mouthBone != null}");
+            }
 
             if (settings.logMissingBones)
             {

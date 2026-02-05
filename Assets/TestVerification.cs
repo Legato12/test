@@ -142,5 +142,4 @@ public class TestVerification
         Console.WriteLine($"Test PASSED: {ok1 && ok2 && anchorStable && pivotOccupied}");
         Console.WriteLine();
     }
-    }
 }

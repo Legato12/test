@@ -62,7 +62,7 @@ namespace Phase0
                         }
 
                         var global = new Phase0GlobalGridMapping();
-                        global.InitFromCamera(controller.mainCamera, globalW, globalH, lattice.cellStep);
+                        global.InitLatticeAligned(controller.mainCamera, globalW, globalH, lattice);
 
                         // Set rugOriginGlobal equivalent - derive from the rug center position in global coords
                         cfg.useRugOverride = true;

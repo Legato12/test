@@ -139,17 +139,10 @@ namespace Phase0
                 globalH = Mathf.Max(1, globalH);
             }
 
-            _globalMapping.InitFromCamera(mainCamera, globalW, globalH, _rugMapping.cellStep);
+            _globalMapping.InitLatticeAligned(mainCamera, globalW, globalH, _rugMapping);
 
-            // Rug origin in global coords: optional override, otherwise derived from the GridRoot Cell_0_0 position.
-            if (sceneConfig != null && sceneConfig.useRugOverride)
-            {
-                _rugOriginGlobal = sceneConfig.rugOrigin;
-            }
-            else
-            {
-                _rugOriginGlobal = _globalMapping.WorldToCellRound(_rugMapping.cell00World);
-            }
+            // Rug origin in global coords: now calculated from lattice alignment
+            _rugOriginGlobal = _globalMapping.RugOriginGlobal;
             _rugWidthCells = rugW;
             _rugHeightCells = rugH;
 
@@ -178,7 +171,7 @@ namespace Phase0
             var occupied = new List<Int2>();
             if (dummyPiece != null)
             {
-                var dummyCell = _globalMapping.WorldToCellFloor(dummyPiece.position);
+                var dummyCell = _globalMapping.WorldToGlobalCellRound(dummyPiece.position);
                 if (_globalMapping.IsInside(dummyCell))
                     occupied.Add(new Int2(dummyCell.x, dummyCell.y));
             }

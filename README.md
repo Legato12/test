@@ -20,13 +20,13 @@
 
 ## Clarification (Global grid + Rug subset)
 
-**Global grid** = entire screen/camera in integer cells: mapping in `Phase0GlobalGridMapping`. Global grid is invisible and covers the full movable space.
+**Global grid** = entire screen/camera in integer cells: calculated from camera in `Phase0GlobalGridMapping.InitLatticeAligned`, rug = subset. Global grid is invisible and covers the full movable space.
 
 **Rug grid** = subset of global grid: RugOrigin(rx,ry) + RugWidth×RugHeight, used for UI/highlight/goal but does NOT restrict placement. Configured in `SceneConfigSO` (globalGridWidth/globalGridHeight, useRugOverride, rugOrigin, rugWidth, rugHeight) or auto-compute from GridRoot.
 
 ## Anchor Rule
 
-Strategy: **B) piece-internal anchor**. Pivot = `ShapeDefinitionSO.pivot` (currently (0,0)), root transform treated as center of pivot-cell, around which grid-rotation occurs in Core (no sprite orbit).
+Strategy: **B) piece-internal anchor**. Pivot = `ShapeDefinitionSO.pivot` (currently (0,0) from Shape_L.asset), root transform treated as center of pivot-cell, around which grid-rotation occurs in Core (no sprite orbit). Rotation = offsets rotate around anchor cell.
 
 ## Blocked cells + Dummy occupied
 
@@ -42,7 +42,8 @@ Based on `Assets/Scenes/SampleScene.unity`:
 
 - **Debounce/hysteresis**: `SceneConfigSO.hoverDebounceSeconds`, `Phase0GameController.cellSwitchHysteresisWorld`
 - **Snap/reject durations**: `SceneConfigSO.snapDuration`, `SceneConfigSO.bounceBackDuration`
-- **Invalid stripes**: `Phase0GameFeelSettingsSO` (hatchAngleDeg=135, hatchWidth=0.18, hatchOpacity=0.8, etc.)
+- **Easing/overshoot**: `SceneConfigSO.snapOvershootRatio`, `SceneConfigSO.snapOvershootMax`, `SceneConfigSO.snapOvershootPhase`, `SceneConfigSO.snapSettleOvershootStrength`, `SceneConfigSO.bounceBackOvershootRatio`, `SceneConfigSO.bounceBackOvershootMax`, `SceneConfigSO.bounceBackOvershootPhase`, `SceneConfigSO.bounceBackBounceStrength` + parameters in PlaySnapTween
+- **Invalid stripes**: `Phase0GameFeelSettingsSO` (hatchAngleDeg=135°, hatchWidth=0.18, hatchOpacity=0.8, etc.)
 
 ## How to run tests
 

@@ -1410,7 +1410,7 @@ Transform:
   m_GameObject: {fileID: 745764343}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.83, y: 3.67, z: 0}
+  m_LocalPosition: {x: 2.46, y: 1.93, z: 0}
   m_LocalScale: {x: 0.27105296, y: 0.27105296, z: 0.27105296}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3117,6 +3117,7 @@ MonoBehaviour:
   spineOffsets: []
   spineVisualOffset: {x: 0, y: 0}
   cellSwitchHysteresisWorld: 0.32
+  hoverDebounceSeconds: 0.05
 --- !u!1 &1461922013
 GameObject:
   m_ObjectHideFlags: 0

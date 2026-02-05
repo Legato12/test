@@ -76,10 +76,13 @@ namespace Phase0
         private Tween _rotationTween;
 
         private Renderer[] _cachedPieceRenderers;
+        private Phase0PieceTilesView _cachedPieceTilesView;
         private readonly Dictionary<Vector2Int, SpriteRenderer> _cellRenderers = new();
         private readonly HashSet<Vector2Int> _blockedCells = new();
-        private readonly HashSet<Vector2Int> _hoverTintedCells = new();
-        private readonly HashSet<Vector2Int> _placedCells = new();
+        private readonly Vector2Int[] _hoverTintedCells = new Vector2Int[4];
+        private int _hoverTintedCellsCount;
+        private readonly Vector2Int[] _placedCells = new Vector2Int[4];
+        private int _placedCellsCount;
 
         private Vector2Int[] _scratchCandidateAll;
         private Vector2Int[] _scratchCandidateInside;
@@ -99,6 +102,7 @@ namespace Phase0
             if (mainCamera == null) mainCamera = Camera.main;
 
             CachePieceRenderers();
+            _cachedPieceTilesView = activePieceRoot != null ? activePieceRoot.GetComponent<Phase0PieceTilesView>() : null;
 
             if (sceneConfig == null)
             {
@@ -237,6 +241,18 @@ namespace Phase0
             {
                 gameFeelFx.SetHatchScaleForCellSize(sceneConfig.cellSize);
             }
+
+            // Pre-warm arrays to prevent first-drag GC allocations
+            // Shape L has 4 cells, so pre-allocate that capacity
+            for (int i = 0; i < 4; i++)
+            {
+                _hoverTintedCells[i] = new Vector2Int(-999, -999);
+                _placedCells[i] = new Vector2Int(-999, -999);
+            }
+            _hoverTintedCellsCount = 4;
+            _placedCellsCount = 4;
+            ClearHoverTint();
+            ClearPlacedCells();
 
             ApplyBaseCellColors();
         }
@@ -649,10 +665,9 @@ namespace Phase0
                 ghostView.EnsureTiles(drawCount, cellSize);
                 ghostView.ApplyLocalCells(cellsToDraw, drawCount, _globalMapping.cellStep.x, _globalMapping.cellStep.y);
 
-                var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
-                if (pieceTiles != null)
+                if (_cachedPieceTilesView != null)
                 {
-                    pieceTiles.ApplyLocalCells(cellsToDraw, drawCount, _globalMapping.cellStep.x, _globalMapping.cellStep.y);
+                    _cachedPieceTilesView.ApplyLocalCells(cellsToDraw, drawCount, _globalMapping.cellStep.x, _globalMapping.cellStep.y);
                 }
 
                 if (gameFeelFx != null)
@@ -698,10 +713,9 @@ namespace Phase0
         private void ApplyRotationVisuals(int rotationCW, bool immediate)
         {
             // Update placeholder tiles layout (not rotating transform)
-            var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
-            if (pieceTiles != null)
+            if (_cachedPieceTilesView != null)
             {
-                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _globalMapping.cellStep.x, _globalMapping.cellStep.y);
+                _cachedPieceTilesView.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _globalMapping.cellStep.x, _globalMapping.cellStep.y);
             }
 
             // Visual rotation: rotate the SpineAnchor and apply per-rotation offset to the Spine child.
@@ -843,8 +857,9 @@ namespace Phase0
                 sr.color = isBlocked ? blockedColor : baseColor;
             }
 
-            foreach (var coord in _placedCells)
+            for (int i = 0; i < _placedCellsCount; i++)
             {
+                var coord = _placedCells[i];
                 if (_cellRenderers.TryGetValue(coord, out var sr) && sr != null)
                 {
                     sr.color = placedColor;
@@ -889,7 +904,7 @@ namespace Phase0
             Color tintColor = isValid ? validColor : invalidColor;
 
             ClearHoverTint();
-            _hoverTintedCells.Clear();
+            _hoverTintedCellsCount = 0;
             for (int i = 0; i < localCells.Length; i++)
             {
                 var world = candidateOrigin + localCells[i];
@@ -898,41 +913,43 @@ namespace Phase0
                 if (!_cellRenderers.TryGetValue(localCoord, out var sr) || sr == null) continue;
 
                 sr.color = tintColor;
-                _hoverTintedCells.Add(localCoord);
+                if (_hoverTintedCellsCount < _hoverTintedCells.Length)
+                    _hoverTintedCells[_hoverTintedCellsCount++] = localCoord;
             }
         }
 
         private void ClearHoverTint()
         {
-            if (_hoverTintedCells.Count == 0) return;
-            foreach (var coord in _hoverTintedCells)
+            if (_hoverTintedCellsCount == 0) return;
+            for (int i = 0; i < _hoverTintedCellsCount; i++)
             {
-                ApplyDefaultCellColor(coord);
+                ApplyDefaultCellColor(_hoverTintedCells[i]);
             }
-            _hoverTintedCells.Clear();
+            _hoverTintedCellsCount = 0;
         }
 
         private void SyncPlacedCellsFromBrain()
         {
-            _placedCells.Clear();
+            _placedCellsCount = 0;
             if (!_brain.IsPlacedOnBoard || _brain.LastPlacedWorldCells == null) return;
 
             for (int i = 0; i < _brain.LastPlacedWorldCells.Length; i++)
             {
                 var cell = _brain.LastPlacedWorldCells[i];
                 var localCoord = new Vector2Int(cell.x, cell.y);
-                _placedCells.Add(localCoord);
+                if (_placedCellsCount < _placedCells.Length)
+                    _placedCells[_placedCellsCount++] = localCoord;
             }
         }
 
         private void ClearPlacedCells()
         {
-            if (_placedCells.Count == 0) return;
-            foreach (var coord in _placedCells)
+            if (_placedCellsCount == 0) return;
+            for (int i = 0; i < _placedCellsCount; i++)
             {
-                ApplyDefaultCellColor(coord);
+                ApplyDefaultCellColor(_placedCells[i]);
             }
-            _placedCells.Clear();
+            _placedCellsCount = 0;
         }
 
         private void ApplyDefaultCellColor(Vector2Int coord)
@@ -943,7 +960,7 @@ namespace Phase0
             Color blockedColor = sceneConfig != null ? sceneConfig.blockedCellColor : new Color(1f, 0.25f, 0.25f, 1f);
             Color placedColor = sceneConfig != null ? sceneConfig.placedCellColor : new Color(0.25f, 0.9f, 0.35f, 1f);
 
-            if (_placedCells.Contains(coord))
+            if (IsPlacedCell(coord))
             {
                 sr.color = placedColor;
                 return;
@@ -951,6 +968,15 @@ namespace Phase0
 
             bool isBlocked = _blockedCells.Contains(coord);
             sr.color = isBlocked ? blockedColor : baseColor;
+        }
+
+        private bool IsPlacedCell(Vector2Int coord)
+        {
+            for (int i = 0; i < _placedCellsCount; i++)
+            {
+                if (_placedCells[i] == coord) return true;
+            }
+            return false;
         }
 
         private void CachePieceRenderers()

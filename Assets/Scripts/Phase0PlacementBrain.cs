@@ -1,99 +1,212 @@
 // Phase0PlacementBrain.cs
 // Pure C# placement/rotation brain (no MonoBehaviour). Unity layer provides world mapping + visuals.
+//
+// Key rules implemented:
+// - Global grid bounds are enforced by GridModel (rect width/height).
+// - Rug (board) is a subset in global coords; it is NOT a placement restriction.
+// - Occupancy is tracked for ALL locked cells globally.
+// - IsPlacedOnBoard + LastPlacedWorldCells refer to rug-intersection only (for UI).
+// - LastPlacedOriginCell and IsLocked work globally (for LastValidPlacement behavior).
 
 using System;
 using System.Collections.Generic;
 
-namespace Phase0
-{
-    public sealed class Phase0PlacementBrain
-    {
+namespace Phase0 {
+    public sealed class Phase0PlacementBrain {
         private GridModel _grid;
-        private Int2[] _baseCells = new Int2[0];
+
+        private Int2[] _baseCells = Array.Empty<Int2>();
         private Int2 _pivot;
-
         private int _rotationCW;
-        private Int2[] _localCells;
+        private Int2[] _localCells = Array.Empty<Int2>();
 
+        // Rug subset (global coords)
+        private Int2 _rugOriginGlobal;
+        private int _rugWidth;
+        private int _rugHeight;
+
+        // Candidate
         private bool _hasCandidate;
         private Int2 _candidateOriginCell;
         private bool _candidateValid;
 
-        private bool _isPlacedOnBoard;
-        private Int2[] _lastPlacedWorldCells;
-        private Int2 _lastPlacedOriginCell;
+        // Locked placement
+        private bool _isLocked;
+        private bool _isPlacedOnBoard; // intersects rug
+        private Int2 _lastLockedOriginCell;
+        private Int2[] _lastLockedWorldCellsAll;   // global cells (for occupancy)
+        private Int2[] _lastLockedWorldCellsInRug; // global cells (UI subset)
 
+        // Scratch
         private Int2[] _scratchWorldCells;
-        private Int2[] _scratchInBoardCells;
-        private int _scratchInBoardCount;
+        private Int2[] _scratchInRugCells;
+        private int _scratchInRugCount;
 
         public int RotationCW => _rotationCW;
         public Int2[] LocalCells => _localCells;
         public bool HasCandidate => _hasCandidate;
         public Int2 CandidateOriginCell => _candidateOriginCell;
         public bool CandidateValid => _candidateValid;
+
+        public bool IsLocked => _isLocked;
         public bool IsPlacedOnBoard => _isPlacedOnBoard;
-        public Int2[] LastPlacedWorldCells => _lastPlacedWorldCells;
-        public Int2 LastPlacedOriginCell => _lastPlacedOriginCell;
 
-        public void Initialize(int gridSize,
-            IEnumerable<Int2> blockedCells,
-            IEnumerable<Int2> occupiedCells,
+        // Test/back-compat helpers (do not mutate state)
+        public bool HasLockedPlacement => _isLocked;
+        public Int2 LastLockedAnchorCell => _lastLockedOriginCell;
+        public Int2[] LastLockedWorldCells => _lastLockedWorldCellsAll;
+        public int LastLockedRugCellCount => _lastLockedWorldCellsInRug != null ? _lastLockedWorldCellsInRug.Length : 0;
+        public Int2[] LastLockedRugCells => _lastLockedWorldCellsInRug;
+
+        /// <summary>
+        /// Cells intersecting the rug (global coords). Use for UI only.
+        /// </summary>
+        public Int2[] LastPlacedWorldCells => _lastLockedWorldCellsInRug;
+
+        /// <summary>
+        /// Last locked anchor cell (global coords). Valid even when locked outside rug.
+        /// </summary>
+        public Int2 LastPlacedOriginCell => _lastLockedOriginCell;
+
+        // Back-compat name used by controller.
+        public Int2 LastPlacedOriginCell_BackCompat => _lastLockedOriginCell;
+
+        public void Initialize(
+            int globalWidth,
+            int globalHeight,
+            IEnumerable<Int2> blockedCellsGlobal,
+            IEnumerable<Int2> occupiedCellsGlobal,
             Int2[] baseCells,
-            Int2 pivot)
-        {
-            _grid = new GridModel(gridSize);
-            _grid.SetBlocked(blockedCells ?? new List<Int2>());
-            if (occupiedCells != null) _grid.AddOccupied(occupiedCells);
+            Int2 pivot,
+            Int2 rugOriginGlobal,
+            int rugWidth,
+            int rugHeight
+        ) {
+            _grid = new GridModel(globalWidth, globalHeight);
+            _grid.SetBlocked(blockedCellsGlobal ?? Array.Empty<Int2>());
+            if (occupiedCellsGlobal != null) {
+                _grid.AddOccupied(occupiedCellsGlobal);
+            }
 
-            _baseCells = baseCells ?? new Int2[0];
+            _rugOriginGlobal = rugOriginGlobal;
+            _rugWidth = Math.Max(0, rugWidth);
+            _rugHeight = Math.Max(0, rugHeight);
+
+            _baseCells = baseCells ?? Array.Empty<Int2>();
             _pivot = pivot;
             _rotationCW = 0;
             RecomputeLocalCells();
 
             _hasCandidate = false;
             _candidateValid = false;
+
+            _isLocked = false;
             _isPlacedOnBoard = false;
-            _lastPlacedWorldCells = null;
-            _lastPlacedOriginCell = Int2.zero;
+            _lastLockedOriginCell = Int2.zero;
+            _lastLockedWorldCellsAll = null;
+            _lastLockedWorldCellsInRug = null;
 
             EnsureScratch(_localCells != null ? _localCells.Length : 0);
         }
 
-        public void SetShape(Int2[] baseCells, Int2 pivot)
-        {
-            _baseCells = baseCells ?? new Int2[0];
+        /// <summary>
+        /// Initialize using a rug rectangle in global grid-space.
+        /// (This overload exists so tests can pass a named argument: rugRect: ...)
+        /// </summary>
+        public void Initialize(
+            int globalWidth,
+            int globalHeight,
+            IEnumerable<Int2> blockedCellsGlobal,
+            IEnumerable<Int2> occupiedCellsGlobal,
+            Int2[] baseCells,
+            Int2 pivot,
+            IntRect rugRect
+        ) {
+            Initialize(
+                globalWidth,
+                globalHeight,
+                blockedCellsGlobal,
+                occupiedCellsGlobal,
+                baseCells,
+                pivot,
+                rugRect.origin,
+                rugRect.width,
+                rugRect.height
+            );
+        }
+
+        // Back-compat (treat rug == grid, origin == (0,0)).
+        public void Initialize(
+            int gridSize,
+            IEnumerable<Int2> blockedCells,
+            IEnumerable<Int2> occupiedCells,
+            Int2[] baseCells,
+            Int2 pivot
+        ) {
+            Initialize(
+                gridSize,
+                gridSize,
+                blockedCells,
+                occupiedCells,
+                baseCells,
+                pivot,
+                Int2.zero,
+                gridSize,
+                gridSize
+            );
+        }
+
+        /// <summary>
+        /// Back-compat initialize with explicit rug rectangle.
+        /// </summary>
+        public void Initialize(
+            int gridSize,
+            IEnumerable<Int2> blockedCells,
+            IEnumerable<Int2> occupiedCells,
+            Int2[] baseCells,
+            Int2 pivot,
+            IntRect rugRect
+        ) {
+            Initialize(
+                gridSize,
+                gridSize,
+                blockedCells,
+                occupiedCells,
+                baseCells,
+                pivot,
+                rugRect.origin,
+                rugRect.width,
+                rugRect.height
+            );
+        }
+
+        public void SetShape(Int2[] baseCells, Int2 pivot) {
+            _baseCells = baseCells ?? Array.Empty<Int2>();
             _pivot = pivot;
             RecomputeLocalCells();
         }
 
-        public void RotateCW()
-        {
+        public void RotateCW() {
             _rotationCW = (_rotationCW + 1) & 3;
             RecomputeLocalCells();
         }
 
-        public void SetRotationCW(int rotationCW)
-        {
+        public void SetRotationCW(int rotationCW) {
             _rotationCW = rotationCW & 3;
             RecomputeLocalCells();
         }
 
-        public void ResetCandidate()
-        {
+        public void ResetCandidate() {
             _hasCandidate = false;
             _candidateValid = false;
         }
 
-        public void UpdateCandidate(Int2 approxCell, bool shouldSwitchCandidate)
-        {
-            if (_hasCandidate)
-            {
-                if (shouldSwitchCandidate)
+        public void UpdateCandidate(Int2 approxCell, bool shouldSwitchCandidate) {
+            if (_hasCandidate) {
+                if (shouldSwitchCandidate) {
                     _candidateOriginCell = approxCell;
-            }
-            else
-            {
+                }
+            } else {
                 _candidateOriginCell = approxCell;
                 _hasCandidate = true;
             }
@@ -101,20 +214,20 @@ namespace Phase0
             _candidateValid = _grid.CanPlace(_candidateOriginCell, _localCells, out _);
         }
 
-        public void OnPickup()
-        {
-            if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
-                _grid.RemoveOccupied(_lastPlacedWorldCells);
+        public void OnPickup() {
+            // When the piece is picked up from a locked placement, remove its occupancy so it can be moved/rotated.
+            if (_isLocked && _lastLockedWorldCellsAll != null) {
+                _grid.RemoveOccupied(_lastLockedWorldCellsAll, _lastLockedWorldCellsAll.Length);
+            }
         }
 
-        public void RestorePlacementIfAny()
-        {
-            if (_isPlacedOnBoard && _lastPlacedWorldCells != null)
-                _grid.AddOccupied(_lastPlacedWorldCells);
+        public void RestorePlacementIfAny() {
+            if (_isLocked && _lastLockedWorldCellsAll != null) {
+                _grid.AddOccupied(_lastLockedWorldCellsAll, _lastLockedWorldCellsAll.Length);
+            }
         }
 
-        public Int2[] GetCandidateWorldCells()
-        {
+        public Int2[] GetCandidateWorldCells() {
             if (!_hasCandidate) return null;
 
             int count = _localCells != null ? _localCells.Length : 0;
@@ -125,55 +238,61 @@ namespace Phase0
             return CloneScratchWorldCells(count);
         }
 
-        public Int2[] PlaceCandidate()
-        {
+        public Int2[] PlaceCandidate() {
             int worldCount;
             var worldCells = PlaceCandidateReuse(out worldCount);
             if (worldCells == null) return null;
 
             if (worldCount == 0) return Array.Empty<Int2>();
-
             return CloneScratchWorldCells(worldCount);
         }
 
-        public bool TryCommitPlacementAt(Int2 originCell, out Int2 firstInvalid)
-        {
-            if (!_grid.CanPlace(originCell, _localCells, out firstInvalid))
+        public bool TryCommitPlacementAt(Int2 originCell, out Int2 firstInvalid) {
+            if (!_grid.CanPlace(originCell, _localCells, out firstInvalid)) {
                 return false;
+            }
 
             int count = _localCells != null ? _localCells.Length : 0;
-            if (count == 0)
-            {
-                _lastPlacedWorldCells = null;
+            if (count == 0) {
+                _isLocked = true;
                 _isPlacedOnBoard = false;
-                _lastPlacedOriginCell = originCell;
+                _lastLockedOriginCell = originCell;
+                _lastLockedWorldCellsAll = null;
+                _lastLockedWorldCellsInRug = null;
                 return true;
             }
 
             EnsureScratch(count);
             BuildWorldCells(originCell, count);
-            BuildInBoardCells(count);
 
-            if (_scratchInBoardCount > 0)
-            {
-                _grid.AddOccupied(_scratchInBoardCells, _scratchInBoardCount);
-                StoreLastPlacedFromScratch(_scratchInBoardCount);
-                _isPlacedOnBoard = true;
-            }
-            else
-            {
-                _lastPlacedWorldCells = null;
-                _isPlacedOnBoard = false;
-            }
+            // Occupy all cells globally.
+            _grid.AddOccupied(_scratchWorldCells, count);
 
-            _lastPlacedOriginCell = originCell;
+            StoreLastLockedAll(count);
+            BuildInRugCells(count);
+            StoreLastLockedInRug(_scratchInRugCount);
+
+            _isLocked = true;
+            _isPlacedOnBoard = _scratchInRugCount > 0;
+            _lastLockedOriginCell = originCell;
             return true;
         }
 
-        private void RecomputeLocalCells()
-        {
-            if (_baseCells == null || _baseCells.Length == 0)
-            {
+        public Int2[] PlaceCandidateReuse(out int worldCount) {
+            worldCount = 0;
+            if (!_hasCandidate || !_candidateValid) return null;
+
+            // CandidateValid is derived from CanPlace(). Still re-check at commit time for safety.
+            if (!TryCommitPlacementAt(_candidateOriginCell, out _)) {
+                return null;
+            }
+
+            worldCount = _localCells != null ? _localCells.Length : 0;
+            return _scratchWorldCells;
+        }
+
+        private void RecomputeLocalCells() {
+            if (_baseCells == null || _baseCells.Length == 0) {
                 _localCells = new[] { Int2.zero };
                 EnsureScratch(_localCells.Length);
                 return;
@@ -183,94 +302,74 @@ namespace Phase0
             EnsureScratch(_localCells.Length);
         }
 
-        private void EnsureScratch(int size)
-        {
+        private void EnsureScratch(int size) {
             if (size <= 0) size = 1;
 
-            if (_scratchWorldCells == null || _scratchWorldCells.Length != size)
-            {
+            if (_scratchWorldCells == null || _scratchWorldCells.Length != size) {
                 _scratchWorldCells = new Int2[size];
             }
-
-            if (_scratchInBoardCells == null || _scratchInBoardCells.Length != size)
-            {
-                _scratchInBoardCells = new Int2[size];
+            if (_scratchInRugCells == null || _scratchInRugCells.Length != size) {
+                _scratchInRugCells = new Int2[size];
             }
         }
 
-        private void BuildWorldCells(Int2 originCell, int count)
-        {
-            for (int i = 0; i < count; i++)
-            {
+        private void BuildWorldCells(Int2 originCell, int count) {
+            for (int i = 0; i < count; i++) {
                 _scratchWorldCells[i] = originCell + _localCells[i];
             }
-
         }
 
-        private void BuildInBoardCells(int count)
-        {
-            _scratchInBoardCount = 0;
-            for (int i = 0; i < count; i++)
-            {
-                var world = _scratchWorldCells[i];
-                if (!_grid.IsInside(world))
-                    continue;
+        private void BuildInRugCells(int count) {
+            _scratchInRugCount = 0;
+            if (_rugWidth <= 0 || _rugHeight <= 0) return;
 
-                _scratchInBoardCells[_scratchInBoardCount] = world;
-                _scratchInBoardCount++;
+            for (int i = 0; i < count; i++) {
+                var world = _scratchWorldCells[i];
+                if (!IsInsideRug(world)) {
+                    continue;
+                }
+
+                _scratchInRugCells[_scratchInRugCount] = world;
+                _scratchInRugCount++;
             }
         }
 
-        private Int2[] CloneScratchWorldCells(int count)
-        {
+        private bool IsInsideRug(Int2 globalCell) {
+            int rx = _rugOriginGlobal.x;
+            int ry = _rugOriginGlobal.y;
+            return globalCell.x >= rx && globalCell.x < rx + _rugWidth
+                && globalCell.y >= ry && globalCell.y < ry + _rugHeight;
+        }
+
+        private Int2[] CloneScratchWorldCells(int count) {
             var result = new Int2[count];
-            for (int i = 0; i < count; i++)
-            {
+            for (int i = 0; i < count; i++) {
                 result[i] = _scratchWorldCells[i];
             }
             return result;
         }
 
-        private void StoreLastPlacedFromScratch(int count)
-        {
-            if (_lastPlacedWorldCells == null || _lastPlacedWorldCells.Length != count)
-            {
-                _lastPlacedWorldCells = new Int2[count];
+        private void StoreLastLockedAll(int count) {
+            if (_lastLockedWorldCellsAll == null || _lastLockedWorldCellsAll.Length != count) {
+                _lastLockedWorldCellsAll = new Int2[count];
             }
-
-            for (int i = 0; i < count; i++)
-            {
-                _lastPlacedWorldCells[i] = _scratchInBoardCells[i];
+            for (int i = 0; i < count; i++) {
+                _lastLockedWorldCellsAll[i] = _scratchWorldCells[i];
             }
         }
 
-        public Int2[] PlaceCandidateReuse(out int worldCount)
-        {
-            worldCount = 0;
-            if (!_hasCandidate || !_candidateValid) return null;
-
-            int count = _localCells != null ? _localCells.Length : 0;
-            if (count == 0) return Array.Empty<Int2>();
-
-            EnsureScratch(count);
-            BuildWorldCells(_candidateOriginCell, count);
-            BuildInBoardCells(count);
-
-            if (_scratchInBoardCount > 0)
-            {
-                _grid.AddOccupied(_scratchInBoardCells, _scratchInBoardCount);
-                StoreLastPlacedFromScratch(_scratchInBoardCount);
-                _isPlacedOnBoard = true;
-            }
-            else
-            {
-                _lastPlacedWorldCells = null;
-                _isPlacedOnBoard = false;
+        private void StoreLastLockedInRug(int count) {
+            if (count <= 0) {
+                _lastLockedWorldCellsInRug = null;
+                return;
             }
 
-            _lastPlacedOriginCell = _candidateOriginCell;
-            worldCount = count;
-            return _scratchWorldCells;
+            if (_lastLockedWorldCellsInRug == null || _lastLockedWorldCellsInRug.Length != count) {
+                _lastLockedWorldCellsInRug = new Int2[count];
+            }
+            for (int i = 0; i < count; i++) {
+                _lastLockedWorldCellsInRug[i] = _scratchInRugCells[i];
+            }
         }
     }
 }

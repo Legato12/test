@@ -10,18 +10,20 @@ namespace Phase0
     [Serializable]
     public sealed class Phase0BoardMapping
     {
-        public int gridSize = 4;
+        public int width = 4;
+        public int height = 4;
 
         public Vector2 cellStep;          // (cellSize + gap, cellSize + gap) inferred from scene
         public Vector2 cell00World;       // center of Cell_0_0 in world
 
         public Rect gridWorldRect;        // world rect covering full grid footprint
 
-        public bool TryAutoInitFromGridRoot(Transform gridRoot, int expectedGridSize = 4)
+        public bool TryAutoInitFromGridRoot(Transform gridRoot, int expectedWidth = 4, int expectedHeight = 4)
         {
             if (gridRoot == null) return false;
 
-            gridSize = expectedGridSize;
+            width = expectedWidth;
+            height = expectedHeight;
 
             var c00 = gridRoot.Find("Cell_0_0") ?? gridRoot.Find("Cell_0_0_BLOCKED");
             var c10 = gridRoot.Find("Cell_1_0") ?? gridRoot.Find("Cell_1_0_BLOCKED");
@@ -39,8 +41,8 @@ namespace Phase0
             float cellSizeY = Mathf.Abs(cellStep.y);
             float minX = cell00World.x - cellSizeX * 0.5f;
             float minY = cell00World.y - cellSizeY * 0.5f;
-            float sizeX = cellSizeX * gridSize;
-            float sizeY = cellSizeY * gridSize;
+            float sizeX = cellSizeX * width;
+            float sizeY = cellSizeY * height;
             gridWorldRect = new Rect(minX, minY, sizeX, sizeY);
 
             return true;
@@ -60,7 +62,7 @@ namespace Phase0
 
         public bool IsInsideGrid(Vector2Int cell)
         {
-            return cell.x >= 0 && cell.x < gridSize && cell.y >= 0 && cell.y < gridSize;
+            return cell.x >= 0 && cell.x < width && cell.y >= 0 && cell.y < height;
         }
 
         public bool IsInsideGridRect(Vector2 world)

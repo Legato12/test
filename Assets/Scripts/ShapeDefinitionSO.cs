@@ -36,10 +36,24 @@ namespace Phase0
     [CreateAssetMenu(menuName = "Phase0/Scene Config", fileName = "SceneConfig")]
     public sealed class SceneConfigSO : ScriptableObject
     {
-        [Header("Board")]
+        [Header("Rug (Visible Grid)")]
+        [Tooltip("Visible rug/board size in cells. This is NOT a placement restriction.")]
         public int gridSize = 4;              // 4x4
         public float cellSize = 1.0f;
         public float cellGap = 0.06f;
+
+        [Header("Global Grid (Invisible Screen Grid)")]
+        [Tooltip("Global grid width in cells (camera-aligned). If <= 0, it will be auto-computed.")]
+        public int globalGridWidth = 0;
+        [Tooltip("Global grid height in cells (camera-aligned). If <= 0, it will be auto-computed.")]
+        public int globalGridHeight = 0;
+
+        [Header("Rug Subset (Global Coords)")]
+        [Tooltip("If true, use rugOrigin/rugWidth/rugHeight directly. If false, rug origin is auto-derived from GridRoot position in the global grid.")]
+        public bool useRugOverride = false;
+        public Vector2Int rugOrigin = new Vector2Int(0, 0);
+        [Min(1)] public int rugWidth = 4;
+        [Min(1)] public int rugHeight = 4;
         [Header("Board Visuals")]
         public Color baseCellColor = Color.white;
         public Color blockedCellColor = new Color(1f, 0.25f, 0.25f, 1f);

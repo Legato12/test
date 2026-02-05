@@ -46,8 +46,15 @@ namespace Phase0
         [Tooltip("Minimum time between hovered cell switches (anti-flicker).")]
         public float hoverDebounceSeconds = 0.05f;
 
-        private readonly Phase0BoardMapping _mapping = new();
+        // Rug mapping is used only for the visible board cell renderers.
+        private readonly Phase0BoardMapping _rugMapping = new();
+        // Global mapping drives hovered cell / snapping / lock positions.
+        private readonly Phase0GlobalGridMapping _globalMapping = new();
         private readonly Phase0PlacementBrain _brain = new();
+
+        private Vector2Int _rugOriginGlobal;
+        private int _rugWidthCells;
+        private int _rugHeightCells;
 
         private bool _hasEverLocked;
         private Vector3 _spawnWorldPos;
@@ -103,18 +110,52 @@ namespace Phase0
                 shapeDefinition = FindFirstResource<ShapeDefinitionSO>();
             }
 
-            int gridSize = sceneConfig != null ? sceneConfig.gridSize : 4;
+            int rugSize = sceneConfig != null ? sceneConfig.gridSize : 4;
+            int rugW = sceneConfig != null ? sceneConfig.rugWidth : rugSize;
+            int rugH = sceneConfig != null ? sceneConfig.rugHeight : rugSize;
 
-            if (!_mapping.TryAutoInitFromGridRoot(gridRoot, gridSize))
+            if (!_rugMapping.TryAutoInitFromGridRoot(gridRoot, rugW, rugH))
             {
-                Debug.LogError("Phase0GameController: Cannot init mapping from GridRoot. Ensure Cell_0_0 exists.");
+                Debug.LogError("Phase0GameController: Cannot init rug mapping from GridRoot. Ensure Cell_0_0 exists.");
                 enabled = false;
                 return;
             }
 
+            // Global grid dims: either explicit config or auto-computed from camera extents + rug cell step.
+            int globalW = sceneConfig != null ? sceneConfig.globalGridWidth : 0;
+            int globalH = sceneConfig != null ? sceneConfig.globalGridHeight : 0;
+            if (globalW <= 0 || globalH <= 0)
+            {
+                float step = Mathf.Max(Mathf.Abs(_rugMapping.cellStep.x), Mathf.Abs(_rugMapping.cellStep.y));
+                step = Mathf.Max(0.0001f, step);
+
+                float camH = mainCamera.orthographicSize * 2f;
+                float camW = camH * mainCamera.aspect;
+
+                globalW = Mathf.Max(rugW, Mathf.FloorToInt(camW / step));
+                globalH = Mathf.Max(rugH, Mathf.FloorToInt(camH / step));
+
+                globalW = Mathf.Max(1, globalW);
+                globalH = Mathf.Max(1, globalH);
+            }
+
+            _globalMapping.InitFromCamera(mainCamera, globalW, globalH, _rugMapping.cellStep);
+
+            // Rug origin in global coords: optional override, otherwise derived from the GridRoot Cell_0_0 position.
+            if (sceneConfig != null && sceneConfig.useRugOverride)
+            {
+                _rugOriginGlobal = sceneConfig.rugOrigin;
+            }
+            else
+            {
+                _rugOriginGlobal = _globalMapping.WorldToCellRound(_rugMapping.cell00World);
+            }
+            _rugWidthCells = rugW;
+            _rugHeightCells = rugH;
+
             CacheCellRenderers();
 
-            // Build blocked list
+            // Build blocked list (local rug coords for visuals, global coords for core).
             var blocked = new List<Int2>();
             _blockedCells.Clear();
             foreach (Transform cell in gridRoot)
@@ -124,31 +165,48 @@ namespace Phase0
 
                 if (TryParseCellName(cell.name, out var coord))
                 {
-                    blocked.Add(new Int2(coord.x, coord.y));
+                    // Store local coords for the rug visuals.
                     _blockedCells.Add(coord);
+
+                    // Convert to global coords for placement validation.
+                    var global = coord + _rugOriginGlobal;
+                    blocked.Add(new Int2(global.x, global.y));
                 }
             }
 
-            // Occupied: dummy piece occupies exactly 1 cell (as per requirement).
+            // Occupied: dummy piece occupies exactly 1 cell (global coords).
             var occupied = new List<Int2>();
             if (dummyPiece != null)
             {
-                var dummyCell = _mapping.WorldToCellRound(dummyPiece.position);
-                if (_mapping.IsInsideGrid(dummyCell))
+                var dummyCell = _globalMapping.WorldToCellFloor(dummyPiece.position);
+                if (_globalMapping.IsInside(dummyCell))
                     occupied.Add(new Int2(dummyCell.x, dummyCell.y));
             }
 
             _brain.Initialize(
-                gridSize,
+                globalW,
+                globalH,
                 blocked,
                 occupied,
                 shapeDefinition != null ? ToInt2Array(shapeDefinition.baseCells) : null,
-                shapeDefinition != null ? new Int2(shapeDefinition.pivot.x, shapeDefinition.pivot.y) : Int2.zero
+                shapeDefinition != null ? new Int2(shapeDefinition.pivot.x, shapeDefinition.pivot.y) : Int2.zero,
+                new Int2(_rugOriginGlobal.x, _rugOriginGlobal.y),
+                _rugWidthCells,
+                _rugHeightCells
             );
 
             EnsureScratch(_brain.LocalCells.Length);
 
+            // Spawn placement is treated as the initial LastValidPlacement (before first lock).
+            // Snap the spawn position onto the global grid for determinism.
             _spawnWorldPos = activePieceRoot != null ? activePieceRoot.position : default;
+            if (activePieceRoot != null)
+            {
+                var spawnCell = _globalMapping.WorldToCellRound(activePieceRoot.position);
+                var spawnPos2 = _globalMapping.CellToWorldCenter(spawnCell);
+                _spawnWorldPos = new Vector3(spawnPos2.x, spawnPos2.y, 0f);
+                activePieceRoot.position = _spawnWorldPos;
+            }
             _spawnRotationCW = _brain.RotationCW;
             _hasEverLocked = false;
 
@@ -157,7 +215,7 @@ namespace Phase0
             if (pieceTiles != null)
             {
                 pieceTiles.AutoCollectTiles();
-                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _mapping.cellStep.x, _mapping.cellStep.y);
+                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _globalMapping.cellStep.x, _globalMapping.cellStep.y);
             }
 
             if (ghostView != null)
@@ -314,11 +372,17 @@ namespace Phase0
             {
                 // Tap: rotate and revalidate placement (including locked pieces on board).
                 int previousRotation = _brain.RotationCW;
-                bool hadPlacement = _brain.IsPlacedOnBoard;
-                Int2 originCell = hadPlacement
-                    ? _brain.LastPlacedOriginCell
-                    : new Int2(_mapping.WorldToCellRound(activePieceRoot.position).x,
-                        _mapping.WorldToCellRound(activePieceRoot.position).y);
+                bool hadPlacement = _brain.IsLocked;
+                Int2 originCell;
+                if (hadPlacement)
+                {
+                    originCell = _brain.LastPlacedOriginCell;
+                }
+                else
+                {
+                    var approx = _globalMapping.WorldToCellFloor(activePieceRoot.position);
+                    originCell = new Int2(approx.x, approx.y);
+                }
 
                 RotateCW();
 
@@ -362,7 +426,7 @@ namespace Phase0
             if (_brain.HasCandidate && _brain.CandidateValid)
             {
                 // Snap to candidate origin cell
-                Vector3 snapPos = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
+                Vector3 snapPos = _globalMapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
                 PlaySnapTween(activePieceRoot.position, snapPos, isValid: true);
 
@@ -389,7 +453,7 @@ namespace Phase0
 
                 if (_hasEverLocked)
                 {
-                    returnPos = _mapping.CellToWorldCenter(new Vector2Int(_lastLockedOriginCell.x, _lastLockedOriginCell.y));
+                    returnPos = _globalMapping.CellToWorldCenter(new Vector2Int(_lastLockedOriginCell.x, _lastLockedOriginCell.y));
                     returnRotationCW = _lastLockedRotationCW;
                 }
                 else
@@ -438,7 +502,17 @@ namespace Phase0
             var color = gameFeelFx != null && gameFeelFx.settings != null
                 ? gameFeelFx.settings.placedOutlineColor
                 : new Color(0.25f, 0.9f, 0.35f, 0.9f);
-            placedHighlightView.SetCells(ToVector2IntArray(_brain.LastPlacedWorldCells), _mapping, cellSize, color);
+
+            // Convert global rug cells to rug-local coords for the rug mapping.
+            var globalCells = _brain.LastPlacedWorldCells;
+            var localCells = new Vector2Int[globalCells.Length];
+            for (int i = 0; i < globalCells.Length; i++)
+            {
+                var g = globalCells[i];
+                localCells[i] = new Vector2Int(g.x - _rugOriginGlobal.x, g.y - _rugOriginGlobal.y);
+            }
+
+            placedHighlightView.SetCells(localCells, _rugMapping, cellSize, color);
         }
 
         private void PlaySnapTween(Vector3 from, Vector3 to, bool isValid)
@@ -498,14 +572,14 @@ namespace Phase0
 
         private void UpdateCandidateAndGhost(Vector2 pointerWorld)
         {
-            var approxCell = _mapping.WorldToCellRound(pointerWorld);
+            var approxCell = _globalMapping.WorldToCellFloor(pointerWorld);
 
             bool shouldSwitch = false;
             if (_brain.HasCandidate)
             {
                 var currentCell = new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y);
                 bool cellChanged = approxCell != currentCell;
-                float d = _mapping.DistanceToCellCenter(pointerWorld, currentCell);
+                float d = _globalMapping.DistanceToCellCenter(pointerWorld, currentCell);
                 float debounce = sceneConfig != null ? sceneConfig.hoverDebounceSeconds : hoverDebounceSeconds;
                 bool debounceReady = Time.unscaledTime - _lastHoverSwitchTime >= debounce;
 
@@ -548,7 +622,7 @@ namespace Phase0
                 for (int i = 0; i < worldCount; i++)
                 {
                     var wc = _scratchCandidateAll[i];
-                    if (!_mapping.IsInsideGrid(wc))
+                    if (!IsInsideRugGlobal(wc))
                         continue;
 
                     _scratchCandidateInside[_scratchInsideCount] = wc;
@@ -563,7 +637,7 @@ namespace Phase0
                 }
 
                 ghostView.SetVisible(true);
-                ghostView.transform.position = _mapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
+                ghostView.transform.position = _globalMapping.CellToWorldCenter(new Vector2Int(_brain.CandidateOriginCell.x, _brain.CandidateOriginCell.y));
 
                 // Apply footprint (valid: intersecting, invalid: full footprint)
                 UnityEngine.Vector2Int[] cellsToDraw = _scratchCandidateLocalAll;
@@ -571,12 +645,12 @@ namespace Phase0
 
                 float cellSize = sceneConfig != null ? sceneConfig.cellSize : 1f;
                 ghostView.EnsureTiles(drawCount, cellSize);
-                ghostView.ApplyLocalCells(cellsToDraw, drawCount, _mapping.cellStep.x, _mapping.cellStep.y);
+                ghostView.ApplyLocalCells(cellsToDraw, drawCount, _globalMapping.cellStep.x, _globalMapping.cellStep.y);
 
                 var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
                 if (pieceTiles != null)
                 {
-                    pieceTiles.ApplyLocalCells(cellsToDraw, drawCount, _mapping.cellStep.x, _mapping.cellStep.y);
+                    pieceTiles.ApplyLocalCells(cellsToDraw, drawCount, _globalMapping.cellStep.x, _globalMapping.cellStep.y);
                 }
 
                 if (gameFeelFx != null)
@@ -628,7 +702,7 @@ namespace Phase0
             var pieceTiles = activePieceRoot.GetComponent<Phase0PieceTilesView>();
             if (pieceTiles != null)
             {
-                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _mapping.cellStep.x, _mapping.cellStep.y);
+                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _globalMapping.cellStep.x, _globalMapping.cellStep.y);
             }
 
             // Visual rotation: rotate the SpineAnchor and apply per-rotation offset to the Spine child.
@@ -784,6 +858,28 @@ namespace Phase0
             }
         }
 
+        private bool IsInsideRugGlobal(Vector2Int globalCell)
+        {
+            // Rug is a subset of the global grid, expressed in global grid-space.
+            // IMPORTANT: rug is NOT a placement restriction; it's only for UI subset (tint/highlight/ghost).
+            return globalCell.x >= _rugOriginGlobal.x
+                && globalCell.x < _rugOriginGlobal.x + _rugWidthCells
+                && globalCell.y >= _rugOriginGlobal.y
+                && globalCell.y < _rugOriginGlobal.y + _rugHeightCells;
+        }
+
+        private bool TryGlobalToRugLocal(Vector2Int globalCell, out Vector2Int rugLocal)
+        {
+            if (!IsInsideRugGlobal(globalCell))
+            {
+                rugLocal = default;
+                return false;
+            }
+
+            rugLocal = new Vector2Int(globalCell.x - _rugOriginGlobal.x, globalCell.y - _rugOriginGlobal.y);
+            return true;
+        }
+
         private void UpdateHoverTint()
         {
             if (_cellRenderers.Count == 0 || !_brain.HasCandidate) return;
@@ -803,12 +899,12 @@ namespace Phase0
             for (int i = 0; i < localCells.Length; i++)
             {
                 var world = candidateOrigin + localCells[i];
-                var coord = new Vector2Int(world.x, world.y);
-                if (!_mapping.IsInsideGrid(coord)) continue;
-                if (!_cellRenderers.TryGetValue(coord, out var sr) || sr == null) continue;
+                var globalCoord = new Vector2Int(world.x, world.y);
+                if (!TryGlobalToRugLocal(globalCoord, out var localCoord)) continue;
+                if (!_cellRenderers.TryGetValue(localCoord, out var sr) || sr == null) continue;
 
                 sr.color = tintColor;
-                _hoverTintedCells.Add(coord);
+                _hoverTintedCells.Add(localCoord);
             }
         }
 
@@ -830,8 +926,11 @@ namespace Phase0
             for (int i = 0; i < _brain.LastPlacedWorldCells.Length; i++)
             {
                 var cell = _brain.LastPlacedWorldCells[i];
-                var coord = new Vector2Int(cell.x, cell.y);
-                _placedCells.Add(coord);
+                var globalCoord = new Vector2Int(cell.x, cell.y);
+                if (TryGlobalToRugLocal(globalCoord, out var localCoord))
+                {
+                    _placedCells.Add(localCoord);
+                }
             }
         }
 
@@ -996,8 +1095,8 @@ namespace Phase0
         private Vector2 GetFallbackPieceExtents()
         {
             if (sceneConfig == null) return new Vector2(0.3f, 0.3f);
-            float stepX = Mathf.Abs(_mapping.cellStep.x) > 0.0001f ? Mathf.Abs(_mapping.cellStep.x) : sceneConfig.cellSize;
-            float stepY = Mathf.Abs(_mapping.cellStep.y) > 0.0001f ? Mathf.Abs(_mapping.cellStep.y) : sceneConfig.cellSize;
+            float stepX = Mathf.Abs(_globalMapping.cellStep.x) > 0.0001f ? Mathf.Abs(_globalMapping.cellStep.x) : sceneConfig.cellSize;
+            float stepY = Mathf.Abs(_globalMapping.cellStep.y) > 0.0001f ? Mathf.Abs(_globalMapping.cellStep.y) : sceneConfig.cellSize;
             var localCells = _brain.LocalCells;
             if (localCells == null || localCells.Length == 0)
             {

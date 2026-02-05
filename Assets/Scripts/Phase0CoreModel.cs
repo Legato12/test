@@ -69,14 +69,19 @@ namespace Phase0
 
     public sealed class GridModel
     {
-        public readonly int gridSize;
+        public readonly int width;
+        public readonly int height;
 
         private readonly HashSet<Int2> _blocked = new();
         private readonly HashSet<Int2> _occupied = new();
 
-        public GridModel(int gridSize)
-        {
-            this.gridSize = gridSize;
+        public GridModel(int gridSize) : this(gridSize, gridSize) {
+        }
+
+        public GridModel(int width, int height) {
+            // Defensive: avoid zero/negative sizes.
+            this.width = Math.Max(1, width);
+            this.height = Math.Max(1, height);
         }
 
         public void SetBlocked(IEnumerable<Int2> cells)
@@ -113,7 +118,7 @@ namespace Phase0
             }
         }
 
-        public bool IsInside(Int2 c) => c.x >= 0 && c.x < gridSize && c.y >= 0 && c.y < gridSize;
+        public bool IsInside(Int2 c) => c.x >= 0 && c.x < width && c.y >= 0 && c.y < height;
 
         public bool IsBlockedOrOccupied(Int2 c) => _blocked.Contains(c) || _occupied.Contains(c);
 
@@ -123,7 +128,8 @@ namespace Phase0
             {
                 var world = originCell + localCells[i];
 
-                if (IsBlockedOrOccupied(world))
+                // Bounds check first: placement must be fully inside the grid.
+                if (!IsInside(world) || IsBlockedOrOccupied(world))
                 {
                     firstInvalid = world;
                     return false;

@@ -35,10 +35,12 @@ namespace Phase0 {
         private bool _isPlacedOnBoard; // intersects rug
         private Int2 _lastLockedOriginCell;
         private Int2[] _lastLockedWorldCellsAll;   // global cells (for occupancy)
-        private Int2[] _lastLockedWorldCellsInRug; // global cells (UI subset)
+        private Int2[] _lastLockedWorldCellsInRug; // global cells intersecting rug (for UI)
+        private Int2[] _lastLockedRugLocalCells;   // rug-local cells (UI subset)
 
         // Scratch
         private Int2[] _scratchWorldCells;
+        private Int2[] _scratchWorldCellsInRug;
         private Int2[] _scratchInRugCells;
         private int _scratchInRugCount;
 
@@ -55,8 +57,8 @@ namespace Phase0 {
         public bool HasLockedPlacement => _isLocked;
         public Int2 LastLockedAnchorCell => _lastLockedOriginCell;
         public Int2[] LastLockedWorldCells => _lastLockedWorldCellsAll;
-        public int LastLockedRugCellCount => _lastLockedWorldCellsInRug != null ? _lastLockedWorldCellsInRug.Length : 0;
-        public Int2[] LastLockedRugCells => _lastLockedWorldCellsInRug;
+        public int LastLockedRugCellCount => _lastLockedRugLocalCells != null ? _lastLockedRugLocalCells.Length : 0;
+        public Int2[] LastLockedRugCells => _lastLockedRugLocalCells;
 
         /// <summary>
         /// Cells intersecting the rug (global coords). Use for UI only.
@@ -105,6 +107,7 @@ namespace Phase0 {
             _lastLockedOriginCell = Int2.zero;
             _lastLockedWorldCellsAll = null;
             _lastLockedWorldCellsInRug = null;
+            _lastLockedRugLocalCells = null;
 
             EnsureScratch(_localCells != null ? _localCells.Length : 0);
         }
@@ -259,6 +262,7 @@ namespace Phase0 {
                 _lastLockedOriginCell = originCell;
                 _lastLockedWorldCellsAll = null;
                 _lastLockedWorldCellsInRug = null;
+                _lastLockedRugLocalCells = null;
                 return true;
             }
 
@@ -308,6 +312,9 @@ namespace Phase0 {
             if (_scratchWorldCells == null || _scratchWorldCells.Length != size) {
                 _scratchWorldCells = new Int2[size];
             }
+            if (_scratchWorldCellsInRug == null || _scratchWorldCellsInRug.Length != size) {
+                _scratchWorldCellsInRug = new Int2[size];
+            }
             if (_scratchInRugCells == null || _scratchInRugCells.Length != size) {
                 _scratchInRugCells = new Int2[size];
             }
@@ -329,7 +336,9 @@ namespace Phase0 {
                     continue;
                 }
 
-                _scratchInRugCells[_scratchInRugCount] = world;
+                // Store both global and rug-local coordinates
+                _scratchWorldCellsInRug[_scratchInRugCount] = world;
+                _scratchInRugCells[_scratchInRugCount] = world - _rugOriginGlobal;
                 _scratchInRugCount++;
             }
         }
@@ -361,14 +370,19 @@ namespace Phase0 {
         private void StoreLastLockedInRug(int count) {
             if (count <= 0) {
                 _lastLockedWorldCellsInRug = null;
+                _lastLockedRugLocalCells = null;
                 return;
             }
 
             if (_lastLockedWorldCellsInRug == null || _lastLockedWorldCellsInRug.Length != count) {
                 _lastLockedWorldCellsInRug = new Int2[count];
             }
+            if (_lastLockedRugLocalCells == null || _lastLockedRugLocalCells.Length != count) {
+                _lastLockedRugLocalCells = new Int2[count];
+            }
             for (int i = 0; i < count; i++) {
-                _lastLockedWorldCellsInRug[i] = _scratchInRugCells[i];
+                _lastLockedWorldCellsInRug[i] = _scratchWorldCellsInRug[i];
+                _lastLockedRugLocalCells[i] = _scratchInRugCells[i];
             }
         }
     }

@@ -116,7 +116,6 @@ namespace Phase0
 
             if (!_rugMapping.TryAutoInitFromGridRoot(gridRoot, rugW, rugH))
             {
-                Debug.LogError("Phase0GameController: Cannot init rug mapping from GridRoot. Ensure Cell_0_0 exists.");
                 enabled = false;
                 return;
             }
@@ -708,11 +707,6 @@ namespace Phase0
                 var spineAnchor = activePieceRoot.Find("SpineAnchor");
                 if (spineAnchor != null)
                 {
-                    if (spineAnchor.localPosition != Vector3.zero)
-                    {
-                        Debug.LogWarning("Phase0GameController: SpineAnchor.localPosition should be (0,0,0) to avoid pivot drift.", spineAnchor);
-                    }
-
                     float angle = -90f * rotationCW;
                     _rotationTween.Stop();
                     float duration = sceneConfig != null ? sceneConfig.rotateDuration : 0.12f;

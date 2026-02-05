@@ -336,16 +336,12 @@ namespace Phase0
         {
             if (settings == null || !settings.enableBoneFollow)
             {
-                Debug.LogWarning($"Phase0GameFeelFX: TriggerNoShake skipped - settings null or bone follow disabled");
                 return;
             }
 
             _noShakeT = 0f;
             _noShakeDur = Mathf.Max(0.01f, settings.headNoShakeDuration);
             _noShakeAmpDeg = settings.headNoShakeDegrees;
-
-            Debug.Log($"Phase0GameFeelFX: TriggerNoShake started - duration {_noShakeDur}s, amplitude {_noShakeAmpDeg}°");
-            Debug.Log($"Phase0GameFeelFX: Head bone found: {_headBone != null}, bone name: {_headBone?.Data?.Name ?? "null"}");
         }
 
         private void TickNoShake()
@@ -360,13 +356,11 @@ namespace Phase0
         {
             if (!Validate() || !settings.enableBoneFollow)
             {
-                Debug.Log($"Phase0GameFeelFX: TickBoneFollow skipped - validate:{Validate()}, enableBoneFollow:{settings?.enableBoneFollow}");
                 return;
             }
             if (_sa == null) _sa = ResolveSkeletonAnimation();
             if (_sa == null || _sa.Skeleton == null)
             {
-                Debug.Log($"Phase0GameFeelFX: TickBoneFollow skipped - sa:{_sa != null}, skeleton:{_sa?.Skeleton != null}");
                 return;
             }
 
@@ -394,14 +388,10 @@ namespace Phase0
             {
                 float u = Mathf.Clamp01(_noShakeT / _noShakeDur);
                 noShake = Mathf.Sin(u * Mathf.PI * 4f) * _noShakeAmpDeg * (1f - u);
-                Debug.Log($"Phase0GameFeelFX: NoShake active - u:{u:F2}, noShake:{noShake:F2}°");
             }
 
             float a = 1f - Mathf.Exp(-settings.headFollowStiffness * dt);
-            float oldHeadRot = _headRotDeg;
             _headRotDeg = Mathf.Lerp(_headRotDeg, desiredHead + noShake, a);
-
-            Debug.Log($"Phase0GameFeelFX: Head rotation - desired:{desiredHead:F2}°, noShake:{noShake:F2}°, final:{_headRotDeg:F2}° (was {oldHeadRot:F2}°)");
 
             float desiredFaceX = Mathf.Clamp(kx * settings.faceBob,
                 settings.faceOffsetXMinMax.x, settings.faceOffsetXMinMax.y);
@@ -466,6 +456,33 @@ namespace Phase0
             }
         }
 
+        private Spine.Bone FindBoneWithFallback(string primaryName, string[] fallbackNames)
+        {
+            if (_sa == null || _sa.Skeleton == null) return null;
+
+            // Try primary name first
+            if (!string.IsNullOrEmpty(primaryName))
+            {
+                var bone = _sa.Skeleton.FindBone(primaryName);
+                if (bone != null) return bone;
+            }
+
+            // Try fallback names
+            if (fallbackNames != null)
+            {
+                foreach (var name in fallbackNames)
+                {
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        var bone = _sa.Skeleton.FindBone(name);
+                        if (bone != null) return bone;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         private void TryBindBones(bool logSuccess)
         {
             if (_sa == null || _sa.Skeleton == null || settings == null)
@@ -476,40 +493,46 @@ namespace Phase0
 
             Debug.Log($"Phase0GameFeelFX: TryBindBones - looking for bones in skeleton '{_sa.Skeleton.Data.Name}'");
 
-            if (!string.IsNullOrEmpty(settings.headBoneName))
+            // Head bone with fallbacks
+            string[] headFallbacks = { "head", "Head", "HEAD", "root", "Root", "neck", "Neck" };
+            _headBone = FindBoneWithFallback(settings.headBoneName, headFallbacks);
+            string foundHeadName = _headBone?.Data?.Name ?? "null";
+            if (_headBone != null)
             {
-                _headBone = _sa.Skeleton.FindBone(settings.headBoneName);
-                Debug.Log($"Phase0GameFeelFX: Head bone '{settings.headBoneName}' -> {_headBone != null}");
+                Debug.Log($"Phase0GameFeelFX: Head bone found: '{foundHeadName}' (primary: '{settings.headBoneName}')");
+            }
+            else
+            {
+                Debug.LogWarning($"Phase0GameFeelFX: Head bone NOT found! Tried: {settings.headBoneName}, {string.Join(", ", headFallbacks)}");
             }
 
-            if (!string.IsNullOrEmpty(settings.faceBoneName))
+            // Face bone with fallbacks
+            string[] faceFallbacks = { "face", "Face", "FACE", "mouth", "Mouth", "eyes", "Eyes" };
+            _faceBone = FindBoneWithFallback(settings.faceBoneName, faceFallbacks);
+            if (_faceBone != null)
             {
-                _faceBone = _sa.Skeleton.FindBone(settings.faceBoneName);
-                Debug.Log($"Phase0GameFeelFX: Face bone '{settings.faceBoneName}' -> {_faceBone != null}");
+                Debug.Log($"Phase0GameFeelFX: Face bone found: '{_faceBone.Data.Name}'");
             }
 
+            // Other bones
             if (!string.IsNullOrEmpty(settings.earLBoneName))
             {
                 _earLBone = _sa.Skeleton.FindBone(settings.earLBoneName);
-                Debug.Log($"Phase0GameFeelFX: EarL bone '{settings.earLBoneName}' -> {_earLBone != null}");
             }
 
             if (!string.IsNullOrEmpty(settings.earRBoneName))
             {
                 _earRBone = _sa.Skeleton.FindBone(settings.earRBoneName);
-                Debug.Log($"Phase0GameFeelFX: EarR bone '{settings.earRBoneName}' -> {_earRBone != null}");
             }
 
             if (!string.IsNullOrEmpty(settings.tailBoneName))
             {
                 _tailBone = _sa.Skeleton.FindBone(settings.tailBoneName);
-                Debug.Log($"Phase0GameFeelFX: Tail bone '{settings.tailBoneName}' -> {_tailBone != null}");
             }
 
             if (!string.IsNullOrEmpty(settings.mouthBoneName))
             {
                 _mouthBone = _sa.Skeleton.FindBone(settings.mouthBoneName);
-                Debug.Log($"Phase0GameFeelFX: Mouth bone '{settings.mouthBoneName}' -> {_mouthBone != null}");
             }
 
             if (settings.logMissingBones)

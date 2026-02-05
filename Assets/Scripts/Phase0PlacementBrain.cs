@@ -61,9 +61,9 @@ namespace Phase0 {
         public Int2[] LastLockedRugCells => _lastLockedRugLocalCells;
 
         /// <summary>
-        /// Cells intersecting the rug (global coords). Use for UI only.
+        /// Cells intersecting the rug (rug-local coords). Use for UI only.
         /// </summary>
-        public Int2[] LastPlacedWorldCells => _lastLockedWorldCellsInRug;
+        public Int2[] LastPlacedWorldCells => _lastLockedRugLocalCells;
 
         /// <summary>
         /// Last locked anchor cell (global coords). Valid even when locked outside rug.

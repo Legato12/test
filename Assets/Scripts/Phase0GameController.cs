@@ -676,7 +676,10 @@ namespace Phase0
                     ghostView.SetColor(invalidColor);
                 }
 
-
+                if (gameFeelFx != null)
+                {
+                    gameFeelFx.SetInvalidVisual(invalidVisual);
+                }
             }
         }
 

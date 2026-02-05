@@ -513,7 +513,7 @@ namespace Phase0
 
             float duration = isValid
                 ? (sceneConfig != null ? sceneConfig.snapDuration : 0.12f)
-                : (sceneConfig != null ? sceneConfig.bounceBackDuration : 0.16f);
+                : (sceneConfig != null ? sceneConfig.bounceBackDuration : 0.3f);
 
             float phase = isValid
                 ? (sceneConfig != null ? sceneConfig.snapOvershootPhase : 0.65f)
@@ -719,7 +719,7 @@ namespace Phase0
                     {
                         spineAnchor.localRotation = target;
                     }
-                    else
+                    else if (Quaternion.Dot(spineAnchor.localRotation, target) <= 0.999999f)
                     {
                         _rotationTween = Tween.LocalRotation(spineAnchor, target, duration, Easing.Overshoot(strength));
                     }

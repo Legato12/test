@@ -390,6 +390,9 @@ namespace Phase0
                 {
                     if (_brain.TryCommitPlacementAt(originCell, out _))
                     {
+                        _hasEverLocked = true;
+                        _lastLockedOriginCell = _brain.LastPlacedOriginCell;
+                        _lastLockedRotationCW = _brain.RotationCW;
                         SyncPlacedCellsFromBrain();
                         ApplyBaseCellColors();
                         UpdatePlacedHighlight();
@@ -503,14 +506,8 @@ namespace Phase0
                 ? gameFeelFx.settings.placedOutlineColor
                 : new Color(0.25f, 0.9f, 0.35f, 0.9f);
 
-            // Convert global rug cells to rug-local coords for the rug mapping.
-            var globalCells = _brain.LastPlacedWorldCells;
-            var localCells = new Vector2Int[globalCells.Length];
-            for (int i = 0; i < globalCells.Length; i++)
-            {
-                var g = globalCells[i];
-                localCells[i] = new Vector2Int(g.x - _rugOriginGlobal.x, g.y - _rugOriginGlobal.y);
-            }
+            // LastPlacedWorldCells is now already rug-local, so use directly
+            var localCells = _brain.LastPlacedWorldCells;
 
             placedHighlightView.SetCells(localCells, _rugMapping, cellSize, color);
         }
@@ -926,11 +923,8 @@ namespace Phase0
             for (int i = 0; i < _brain.LastPlacedWorldCells.Length; i++)
             {
                 var cell = _brain.LastPlacedWorldCells[i];
-                var globalCoord = new Vector2Int(cell.x, cell.y);
-                if (TryGlobalToRugLocal(globalCoord, out var localCoord))
-                {
-                    _placedCells.Add(localCoord);
-                }
+                var localCoord = new Vector2Int(cell.x, cell.y);
+                _placedCells.Add(localCoord);
             }
         }
 

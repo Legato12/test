@@ -586,14 +586,18 @@ namespace Phase0
                 shouldSwitch = true;
             }
 
-            var beforeOrigin = _brain.HasCandidate ? _brain.CandidateOriginCell : default;
-            _brain.UpdateCandidate(new Int2(approxCell.x, approxCell.y), shouldSwitch);
-            if (shouldSwitch && _brain.HasCandidate && _brain.CandidateOriginCell != beforeOrigin)
-            {
-                _lastHoverSwitchTime = Time.unscaledTime;
-            }
+    var beforeOrigin = _brain.HasCandidate ? _brain.CandidateOriginCell : default;
+    _brain.UpdateCandidate(new Int2(approxCell.x, approxCell.y), shouldSwitch);
+    if (shouldSwitch && _brain.HasCandidate && _brain.CandidateOriginCell != beforeOrigin)
+    {
+        _lastHoverSwitchTime = Time.unscaledTime;
+    }
 
-            UpdateHoverTint();
+    // Compute validity flags for invalid visual (independent of ghost visibility)
+    bool candidateValid = _brain.HasCandidate && _brain.CandidateValid;
+    bool invalidVisual = _dragStarted && _brain.HasCandidate && !candidateValid;
+
+    UpdateHoverTint();
 
             // Ghost view
             if (ghostView != null)
@@ -601,6 +605,7 @@ namespace Phase0
                 if (!_brain.HasCandidate)
                 {
                     ghostView.SetVisible(false);
+                    if (gameFeelFx != null) gameFeelFx.SetInvalidVisual(invalidVisual);
                     return;
                 }
                 var localCells = _brain.LocalCells;
@@ -629,6 +634,7 @@ namespace Phase0
                 if (_scratchInsideCount == 0 && _brain.CandidateValid)
                 {
                     ghostView.SetVisible(false);
+                    if (gameFeelFx != null) gameFeelFx.SetInvalidVisual(invalidVisual);
                     return;
                 }
 
@@ -654,7 +660,6 @@ namespace Phase0
                     gameFeelFx.SetHatchScaleForCellSize(cellSize);
                 }
 
-                bool candidateValid = _brain.CandidateValid;
                 Color validColor = new Color(0.35f, 0.75f, 1f, 0.6f);
                 Color invalidColor = new Color(1f, 0.25f, 0.25f, 0.6f);
                 if (gameFeelFx != null && gameFeelFx.settings != null)
@@ -671,12 +676,7 @@ namespace Phase0
                     ghostView.SetColor(invalidColor);
                 }
 
-                if (gameFeelFx != null)
-                {
-                    bool hasGhostCandidate = _brain.HasCandidate;
-                    bool ghostIsVisible = ghostView.gameObject.activeSelf;
-                    gameFeelFx.SetInvalidVisual(_dragStarted && hasGhostCandidate && !candidateValid && ghostIsVisible);
-                }
+
             }
         }
 

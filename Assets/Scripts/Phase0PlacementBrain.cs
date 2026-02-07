@@ -312,12 +312,20 @@ namespace Phase0 {
 
         private void RecomputeLocalCells() {
             if (_baseCells == null || _baseCells.Length == 0) {
-                _localCells = new[] { Int2.zero };
+                if (_localCells == null || _localCells.Length != 1) {
+                    _localCells = new Int2[1];
+                }
+                _localCells[0] = Int2.zero;
                 EnsureScratch(_localCells.Length);
                 return;
             }
 
-            _localCells = ShapeRotation.GetRotatedOffsets(_baseOffsets, _rotationCW);
+            int count = _baseOffsets != null ? _baseOffsets.Length : 0;
+            if (_localCells == null || _localCells.Length != count) {
+                _localCells = new Int2[count];
+            }
+
+            ShapeRotation.GetRotatedOffsetsNonAlloc(_baseOffsets, _rotationCW, _localCells);
             EnsureScratch(_localCells.Length);
         }
 

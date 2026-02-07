@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using PrimeTween;
 using UnityEngine;
 
@@ -84,6 +85,18 @@ namespace Phase0
 #endif
         private bool _loggedForceHatch;
 
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        private static void LogDev(string message)
+        {
+            UnityEngine.Debug.Log(message);
+        }
+
+        [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+        private static void LogDevWarning(string message)
+        {
+            UnityEngine.Debug.LogWarning(message);
+        }
+
 #if SPINE_UNITY
         private enum SpineState
         {
@@ -157,11 +170,11 @@ namespace Phase0
             // Debug log hatch state changes
             if (enabled)
             {
-                Debug.Log($"Phase0GameFeelFX: Hatch ACTIVATED - angle={settings?.hatchAngleDeg ?? 45f} strength={settings?.hatchStrength ?? 0f}");
+                LogDev($"Phase0GameFeelFX: Hatch ACTIVATED - angle={settings?.hatchAngleDeg ?? 45f} strength={settings?.hatchStrength ?? 0f}");
             }
             else
             {
-                Debug.Log("Phase0GameFeelFX: Hatch DEACTIVATED");
+                LogDev("Phase0GameFeelFX: Hatch DEACTIVATED");
             }
         }
 
@@ -522,37 +535,37 @@ namespace Phase0
             {
                 if (_headBone == null && !_loggedMissingHead && !string.IsNullOrEmpty(settings.headBoneName))
                 {
-                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.headBoneName}' on '{name}'.");
+                    LogDevWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.headBoneName}' on '{name}'.");
                     _loggedMissingHead = true;
                 }
 
                 if (_faceBone == null && !_loggedMissingFace && !string.IsNullOrEmpty(settings.faceBoneName))
                 {
-                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.faceBoneName}' on '{name}'.");
+                    LogDevWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.faceBoneName}' on '{name}'.");
                     _loggedMissingFace = true;
                 }
 
                 if (_earLBone == null && !_loggedMissingEarL && !string.IsNullOrEmpty(settings.earLBoneName))
                 {
-                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.earLBoneName}' on '{name}'.");
+                    LogDevWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.earLBoneName}' on '{name}'.");
                     _loggedMissingEarL = true;
                 }
 
                 if (_earRBone == null && !_loggedMissingEarR && !string.IsNullOrEmpty(settings.earRBoneName))
                 {
-                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.earRBoneName}' on '{name}'.");
+                    LogDevWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.earRBoneName}' on '{name}'.");
                     _loggedMissingEarR = true;
                 }
 
                 if (_tailBone == null && !_loggedMissingTail && !string.IsNullOrEmpty(settings.tailBoneName))
                 {
-                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.tailBoneName}' on '{name}'.");
+                    LogDevWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.tailBoneName}' on '{name}'.");
                     _loggedMissingTail = true;
                 }
 
                 if (_mouthBone == null && !_loggedMissingMouth && !string.IsNullOrEmpty(settings.mouthBoneName))
                 {
-                    Debug.LogWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.mouthBoneName}' on '{name}'.");
+                    LogDevWarning($"Phase0GameFeelFX: Missing Spine bone '{settings.mouthBoneName}' on '{name}'.");
                     _loggedMissingMouth = true;
                 }
             }
@@ -561,32 +574,32 @@ namespace Phase0
             {
                 if (_headBone != null)
                 {
-                    Debug.Log($"Phase0GameFeelFX: Bound head bone '{_headBone.Data.Name}' on '{name}'.");
+                    LogDev($"Phase0GameFeelFX: Bound head bone '{_headBone.Data.Name}' on '{name}'.");
                 }
 
                 if (_faceBone != null)
                 {
-                    Debug.Log($"Phase0GameFeelFX: Bound face bone '{_faceBone.Data.Name}' on '{name}'.");
+                    LogDev($"Phase0GameFeelFX: Bound face bone '{_faceBone.Data.Name}' on '{name}'.");
                 }
 
                 if (_earLBone != null)
                 {
-                    Debug.Log($"Phase0GameFeelFX: Bound ear L bone '{_earLBone.Data.Name}' on '{name}'.");
+                    LogDev($"Phase0GameFeelFX: Bound ear L bone '{_earLBone.Data.Name}' on '{name}'.");
                 }
 
                 if (_earRBone != null)
                 {
-                    Debug.Log($"Phase0GameFeelFX: Bound ear R bone '{_earRBone.Data.Name}' on '{name}'.");
+                    LogDev($"Phase0GameFeelFX: Bound ear R bone '{_earRBone.Data.Name}' on '{name}'.");
                 }
 
                 if (_tailBone != null)
                 {
-                    Debug.Log($"Phase0GameFeelFX: Bound tail bone '{_tailBone.Data.Name}' on '{name}'.");
+                    LogDev($"Phase0GameFeelFX: Bound tail bone '{_tailBone.Data.Name}' on '{name}'.");
                 }
 
                 if (_mouthBone != null)
                 {
-                    Debug.Log($"Phase0GameFeelFX: Bound mouth bone '{_mouthBone.Data.Name}' on '{name}'.");
+                    LogDev($"Phase0GameFeelFX: Bound mouth bone '{_mouthBone.Data.Name}' on '{name}'.");
                 }
             }
         }
@@ -642,7 +655,7 @@ namespace Phase0
                         }
                         else if (settings.logMissingBones)
                         {
-                            Debug.LogWarning($"Phase0GameFeelFX: Idle animation '{settings.idleAnimationName}' not found on '{name}'.");
+                            LogDevWarning($"Phase0GameFeelFX: Idle animation '{settings.idleAnimationName}' not found on '{name}'.");
                         }
                     }
                 }
@@ -678,7 +691,7 @@ namespace Phase0
             // Debug logging for hatch application
             if (_invalidHatchActive)
             {
-                Debug.Log($"Phase0GameFeelFX: Applying hatch - strength={hatchStrength}, scale={hatchScale}, angle={settings?.hatchAngleDeg ?? 45f}, renderers={_hatchRenderers.Length}");
+                LogDev($"Phase0GameFeelFX: Applying hatch - strength={hatchStrength}, scale={hatchScale}, angle={settings?.hatchAngleDeg ?? 45f}, renderers={_hatchRenderers.Length}");
             }
 
             for (int i = 0; i < _hatchRenderers.Length; i++)
@@ -709,7 +722,7 @@ namespace Phase0
                 float readBackStrength = _hatchBlock.GetFloat(HatchStrengthId);
                 if (_invalidHatchActive && Mathf.Abs(readBackStrength - hatchStrength) > 0.001f)
                 {
-                    Debug.LogWarning($"Phase0GameFeelFX: MPB readback failed! Expected hatchStrength={hatchStrength}, got {readBackStrength}");
+                    LogDevWarning($"Phase0GameFeelFX: MPB readback failed! Expected hatchStrength={hatchStrength}, got {readBackStrength}");
                 }
             }
 #endif
@@ -836,7 +849,7 @@ namespace Phase0
             Material fallbackMat = Resources.Load<Material>("CatMesh_Material_AndroidFallback");
             if (fallbackMat == null)
             {
-                Debug.LogWarning("Phase0GameFeelFX: Android fallback material not found in Resources.");
+                LogDevWarning("Phase0GameFeelFX: Android fallback material not found in Resources.");
                 return;
             }
 
@@ -863,7 +876,7 @@ namespace Phase0
                     {
                         mats[m] = fallbackMat;
                         switched = true;
-                        Debug.Log($"Phase0GameFeelFX: Switched to Android fallback material (shader not supported)");
+                        LogDev("Phase0GameFeelFX: Switched to Android fallback material (shader not supported)");
                         break;
                     }
                 }
@@ -883,14 +896,14 @@ namespace Phase0
             if (_sa == null) _sa = ResolveSkeletonAnimation();
             if (_sa == null)
             {
-                Debug.Log("Phase0GameFeelFX: No SkeletonAnimation found for hatch shader logging.");
+                LogDev("Phase0GameFeelFX: No SkeletonAnimation found for hatch shader logging.");
                 return;
             }
 
             if (_hatchRenderers == null || _hatchRenderers.Length == 0) CacheHatchRenderers();
             if (_hatchRenderers == null || _hatchRenderers.Length == 0)
             {
-                Debug.Log("Phase0GameFeelFX: No hatch renderers found for logging.");
+                LogDev("Phase0GameFeelFX: No hatch renderers found for logging.");
                 return;
             }
 
@@ -912,7 +925,7 @@ namespace Phase0
                     string shaderName = mat.shader != null ? mat.shader.name : "null";
                     bool isSupported = mat.shader != null && mat.shader.isSupported;
 
-                    Debug.Log($"Phase0GameFeelFX: Hatch Mat '{matName}' Shader '{shaderName}' isSupported={isSupported}");
+                    LogDev($"Phase0GameFeelFX: Hatch Mat '{matName}' Shader '{shaderName}' isSupported={isSupported}");
                 }
             }
 
@@ -929,7 +942,7 @@ namespace Phase0
                 float readBackStrength = _hatchBlock.GetFloat(HatchStrengthId);
                 float readBackAngle = _hatchBlock.GetFloat(HatchAngleId);
 
-                Debug.Log($"Phase0GameFeelFX: MPB readback - HatchStrength={readBackStrength} HatchAngleDeg={readBackAngle}");
+                LogDev($"Phase0GameFeelFX: MPB readback - HatchStrength={readBackStrength} HatchAngleDeg={readBackAngle}");
                 break; // Log only first renderer to avoid spam
             }
 #endif
@@ -942,7 +955,7 @@ namespace Phase0
             var renderers = _sa.GetComponentsInChildren<Renderer>(true);
             if (renderers == null || renderers.Length == 0)
             {
-                Debug.Log("Phase0GameFeelFX: No renderers found under Spine object.");
+                LogDev("Phase0GameFeelFX: No renderers found under Spine object.");
                 return;
             }
 
@@ -952,7 +965,7 @@ namespace Phase0
                 if (renderer == null) continue;
                 var mats = renderer.sharedMaterials;
                 int matCount = mats != null ? mats.Length : 0;
-                Debug.Log($"Phase0GameFeelFX: Renderer '{renderer.name}' ({renderer.GetType().Name}) mats={matCount}.");
+                LogDev($"Phase0GameFeelFX: Renderer '{renderer.name}' ({renderer.GetType().Name}) mats={matCount}.");
                 if (mats == null) continue;
                 for (int m = 0; m < mats.Length; m++)
                 {
@@ -960,7 +973,7 @@ namespace Phase0
                     if (mat == null) continue;
                     bool hasStrength = mat.HasProperty("_HatchStrength");
                     bool hasScale = mat.HasProperty("_HatchScale");
-                    Debug.Log($"Phase0GameFeelFX:  - Mat[{m}] '{mat.name}' shader='{mat.shader.name}' hasStrength={hasStrength} hasScale={hasScale}.");
+                    LogDev($"Phase0GameFeelFX:  - Mat[{m}] '{mat.name}' shader='{mat.shader.name}' hasStrength={hasStrength} hasScale={hasScale}.");
                 }
             }
         }
@@ -993,7 +1006,7 @@ namespace Phase0
             {
                 _loggedForceHatch = true;
                 string names = string.Join(", ", System.Array.ConvertAll(_hatchRenderers, r => r != null ? r.name : "<null>"));
-                Debug.Log($"Phase0GameFeelFX: debugForceHatch active. Applied MPB to: {names}");
+                LogDev($"Phase0GameFeelFX: debugForceHatch active. Applied MPB to: {names}");
             }
         }
 #endif

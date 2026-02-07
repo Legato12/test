@@ -89,6 +89,8 @@ namespace Phase0
         private Vector2Int[] _scratchCandidateLocalAll;
         private Vector2Int[] _scratchCandidateLocalInside;
         private int _scratchInsideCount;
+        private Vector2Int[] _scratchLocalCellsV2;
+        private Vector2Int[] _scratchPlacedCellsV2;
 
         private float _lastHoverSwitchTime;
 
@@ -211,7 +213,10 @@ namespace Phase0
             if (pieceTiles != null)
             {
                 pieceTiles.AutoCollectTiles();
-                pieceTiles.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _globalMapping.cellStep.x, _globalMapping.cellStep.y);
+                int localCount = _brain.LocalCells != null ? _brain.LocalCells.Length : 0;
+                EnsureLocalCellsScratch(localCount);
+                FillVector2IntScratch(_brain.LocalCells, localCount, _scratchLocalCellsV2);
+                pieceTiles.ApplyLocalCells(_scratchLocalCellsV2, localCount, _globalMapping.cellStep.x, _globalMapping.cellStep.y);
             }
 
             if (ghostView != null)
@@ -518,9 +523,11 @@ namespace Phase0
                 : new Color(0.25f, 0.9f, 0.35f, 0.9f);
 
             // LastPlacedWorldCells is now already rug-local, so use directly
-            var localCells = ToVector2IntArray(_brain.LastPlacedWorldCells);
+            int localCount = _brain.LastPlacedWorldCells != null ? _brain.LastPlacedWorldCells.Length : 0;
+            EnsurePlacedCellsScratch(localCount);
+            FillVector2IntScratch(_brain.LastPlacedWorldCells, localCount, _scratchPlacedCellsV2);
 
-            placedHighlightView.SetCells(localCells, _rugMapping, cellSize, color);
+            placedHighlightView.SetCells(_scratchPlacedCellsV2, localCount, _rugMapping, cellSize, color);
         }
 
         private void PlaySnapTween(Vector3 from, Vector3 to, bool isValid)
@@ -715,7 +722,10 @@ namespace Phase0
             // Update placeholder tiles layout (not rotating transform)
             if (_cachedPieceTilesView != null)
             {
-                _cachedPieceTilesView.ApplyLocalCells(ToVector2IntArray(_brain.LocalCells), _globalMapping.cellStep.x, _globalMapping.cellStep.y);
+                int localCount = _brain.LocalCells != null ? _brain.LocalCells.Length : 0;
+                EnsureLocalCellsScratch(localCount);
+                FillVector2IntScratch(_brain.LocalCells, localCount, _scratchLocalCellsV2);
+                _cachedPieceTilesView.ApplyLocalCells(_scratchLocalCellsV2, localCount, _globalMapping.cellStep.x, _globalMapping.cellStep.y);
             }
 
             // Visual rotation: rotate the SpineAnchor and apply per-rotation offset to the Spine child.
@@ -1051,6 +1061,34 @@ namespace Phase0
 
             if (_scratchCandidateLocalInside == null || _scratchCandidateLocalInside.Length != maxCells)
                 _scratchCandidateLocalInside = new Vector2Int[maxCells];
+
+            EnsureLocalCellsScratch(maxCells);
+            EnsurePlacedCellsScratch(maxCells);
+        }
+
+        private void EnsureLocalCellsScratch(int maxCells)
+        {
+            if (maxCells < 0) maxCells = 0;
+            if (_scratchLocalCellsV2 == null || _scratchLocalCellsV2.Length != maxCells)
+                _scratchLocalCellsV2 = new Vector2Int[maxCells];
+        }
+
+        private void EnsurePlacedCellsScratch(int maxCells)
+        {
+            if (maxCells < 0) maxCells = 0;
+            if (_scratchPlacedCellsV2 == null || _scratchPlacedCellsV2.Length != maxCells)
+                _scratchPlacedCellsV2 = new Vector2Int[maxCells];
+        }
+
+        private static void FillVector2IntScratch(Int2[] source, int count, Vector2Int[] destination)
+        {
+            if (source == null || destination == null || count <= 0) return;
+
+            int n = Mathf.Min(Mathf.Min(source.Length, destination.Length), count);
+            for (int i = 0; i < n; i++)
+            {
+                destination[i] = new Vector2Int(source[i].x, source[i].y);
+            }
         }
 
         private static Vector3 ClampToCameraBounds(Vector3 world, Camera cam, Transform root, Renderer[] cachedRenderers, float fallbackPaddingWorld, Vector2 fallbackExtents)
@@ -1193,15 +1231,5 @@ namespace Phase0
             return result;
         }
 
-        private static Vector2Int[] ToVector2IntArray(Int2[] source)
-        {
-            if (source == null) return null;
-            var result = new Vector2Int[source.Length];
-            for (int i = 0; i < source.Length; i++)
-            {
-                result[i] = new Vector2Int(source[i].x, source[i].y);
-            }
-            return result;
-        }
     }
 }

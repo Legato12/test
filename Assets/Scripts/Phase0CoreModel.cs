@@ -65,6 +65,20 @@ namespace Phase0
             return rotated;
         }
 
+        // Non-alloc overload for hot paths: writes into caller-owned destination buffer.
+        public static void GetRotatedOffsetsNonAlloc(Int2[] baseOffsets, int rotationIndexCW, Int2[] destination)
+        {
+            if (baseOffsets == null || destination == null) return;
+
+            rotationIndexCW = Mod4(rotationIndexCW);
+            int count = Math.Min(baseOffsets.Length, destination.Length);
+
+            for (int i = 0; i < count; i++)
+            {
+                destination[i] = RotateOffsetCW(baseOffsets[i], rotationIndexCW);
+            }
+        }
+
         private static int Mod4(int x) => ((x % 4) + 4) % 4;
 
         // rotationIndexCW: 0,1,2,3 clockwise quarter-turns

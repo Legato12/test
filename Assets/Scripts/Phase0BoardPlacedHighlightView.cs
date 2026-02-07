@@ -20,16 +20,21 @@ namespace Phase0
 
         public void SetCells(Vector2Int[] cells, Phase0BoardMapping mapping, float cellSize, Color color)
         {
-            if (cells == null || cells.Length == 0)
+            SetCells(cells, cells != null ? cells.Length : 0, mapping, cellSize, color);
+        }
+
+        public void SetCells(Vector2Int[] cells, int count, Phase0BoardMapping mapping, float cellSize, Color color)
+        {
+            if (cells == null || count <= 0)
             {
                 Clear();
                 return;
             }
 
-            int count = Mathf.Min(cells.Length, maxTiles);
-            EnsureTiles(count, cellSize);
+            int drawCount = Mathf.Min(Mathf.Min(cells.Length, count), maxTiles);
+            EnsureTiles(drawCount, cellSize);
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < drawCount; i++)
             {
                 var world = mapping.CellToWorldCenter(cells[i]);
                 var tile = _tiles[i];

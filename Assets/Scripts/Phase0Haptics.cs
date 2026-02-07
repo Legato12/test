@@ -30,12 +30,13 @@ namespace Phase0
         {
             int c = Mathf.Max(1, count);
             float wait = Mathf.Max(0.01f, intervalSeconds);
+            var waitYield = new WaitForSeconds(wait);
 
             for (int i = 0; i < c; i++)
             {
                 Simple();
                 if (i < c - 1)
-                    yield return new WaitForSeconds(wait);
+                    yield return waitYield;
             }
         }
     }

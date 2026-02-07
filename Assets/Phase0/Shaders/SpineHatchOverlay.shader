@@ -148,10 +148,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -159,7 +156,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG
@@ -247,10 +244,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -258,7 +252,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG
@@ -345,10 +339,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -356,7 +347,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG
@@ -443,10 +434,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -454,7 +442,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG
@@ -541,10 +529,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -552,7 +537,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG
@@ -639,10 +624,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -650,7 +632,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG
@@ -737,10 +719,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -748,7 +727,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG
@@ -835,10 +814,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 				fixed4 fragOutline(VertexOutput input) : SV_Target
 				{
-					if (_OutlineEnabled <= 0.5)
-					{
-						discard;
-					}
+					float outlineMask = step(0.5, _OutlineEnabled);
 
 					fixed4 texureColor = calculateTexturePixel(input.texcoord.xy);
 					RETURN_UNLIT_IF_ADDITIVE_SLOT_TINT(texureColor, input.color, input.darkColor, _Color.a, _Black.a)
@@ -846,7 +822,7 @@ Shader "Phase0/Spine/Sprite/Unlit Hatch Overlay"
 
 					fixed alpha = texureColor.a * input.color.a;
 					fixed4 outColor = _OutlineColor;
-					outColor.a *= alpha;
+					outColor.a *= alpha * outlineMask;
 					return outColor;
 				}
 			ENDCG

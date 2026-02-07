@@ -166,16 +166,6 @@ namespace Phase0
             if (_invalidHatchActive == enabled) return;
             _invalidHatchActive = enabled;
             ApplyHatchOverlay();
-
-            // Debug log hatch state changes
-            if (enabled)
-            {
-                LogDev($"Phase0GameFeelFX: Hatch ACTIVATED - angle={settings?.hatchAngleDeg ?? 45f} strength={settings?.hatchStrength ?? 0f}");
-            }
-            else
-            {
-                LogDev("Phase0GameFeelFX: Hatch DEACTIVATED");
-            }
         }
 
         public void SetInvalidVisual(bool invalid)
@@ -688,12 +678,6 @@ namespace Phase0
             float outlineThickness = settings != null ? Mathf.Max(0f, settings.outlineThicknessPx) : 0f;
             Vector4 outlineCenter = ResolveOutlineCenterVector(outlineEnabled);
 
-            // Debug logging for hatch application
-            if (_invalidHatchActive)
-            {
-                LogDev($"Phase0GameFeelFX: Applying hatch - strength={hatchStrength}, scale={hatchScale}, angle={settings?.hatchAngleDeg ?? 45f}, renderers={_hatchRenderers.Length}");
-            }
-
             for (int i = 0; i < _hatchRenderers.Length; i++)
             {
                 var renderer = _hatchRenderers[i];
@@ -716,14 +700,6 @@ namespace Phase0
                 // NOTE:
                 // Avoid per-drag allocations: do NOT instantiate / modify renderer.material here.
                 // MaterialPropertyBlock is the supported, allocation-free path for per-renderer hatch params.
-
-                // Additional debug: read back the value to verify MPB application
-                renderer.GetPropertyBlock(_hatchBlock);
-                float readBackStrength = _hatchBlock.GetFloat(HatchStrengthId);
-                if (_invalidHatchActive && Mathf.Abs(readBackStrength - hatchStrength) > 0.001f)
-                {
-                    LogDevWarning($"Phase0GameFeelFX: MPB readback failed! Expected hatchStrength={hatchStrength}, got {readBackStrength}");
-                }
             }
 #endif
         }

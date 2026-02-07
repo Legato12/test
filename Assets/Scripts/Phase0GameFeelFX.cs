@@ -1262,8 +1262,8 @@ namespace Phase0
         }
 
         private void SuperFix2_OnDropValid() {
-            if (!Validate()) return;
-            Impact(settings.dropValidImpactScale);
+            // Keep SuperFix2 hook for future valid-drop extras,
+            // but avoid duplicate Impact() call. OnDropValid() is the single owner.
         }
 
         private void SuperFix2_OnDropInvalid() {

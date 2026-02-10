@@ -94,6 +94,10 @@ namespace Phase0
 
         private float _lastHoverSwitchTime;
 
+        private float _lastCameraAspect;
+        private int _lastScreenWidth;
+        private int _lastScreenHeight;
+
         private void Awake()
         {
             AutoFindRefs();
@@ -260,6 +264,10 @@ namespace Phase0
             ClearPlacedCells();
 
             ApplyBaseCellColors();
+
+            _lastCameraAspect = mainCamera != null ? mainCamera.aspect : 0f;
+            _lastScreenWidth = Screen.width;
+            _lastScreenHeight = Screen.height;
         }
 
         // Update loop: input -> core brain -> view updates (FX/ghost).
@@ -267,6 +275,16 @@ namespace Phase0
         {
             if (mainCamera == null) return;
             if (activePieceRoot == null) return;
+
+            bool aspectChanged = Mathf.Abs(mainCamera.aspect - _lastCameraAspect) > 0.01f;
+            bool resolutionChanged = Screen.width != _lastScreenWidth || Screen.height != _lastScreenHeight;
+            if (aspectChanged || resolutionChanged)
+            {
+                ReinitializeGlobalGrid();
+                _lastCameraAspect = mainCamera.aspect;
+                _lastScreenWidth = Screen.width;
+                _lastScreenHeight = Screen.height;
+            }
 
             var pointer = PointerState.Get(mainCamera);
             if (pointer.down)
@@ -289,6 +307,86 @@ namespace Phase0
             {
                 gameFeelFx.UpdateKinematics(activePieceRoot.position);
             }
+        }
+
+        private void ReinitializeGlobalGrid()
+        {
+            if (mainCamera == null || gridRoot == null)
+            {
+                return;
+            }
+
+            int rugW = sceneConfig != null ? sceneConfig.rugWidth : 4;
+            int rugH = sceneConfig != null ? sceneConfig.rugHeight : 4;
+
+            float step = Mathf.Max(Mathf.Abs(_rugMapping.cellStep.x), Mathf.Abs(_rugMapping.cellStep.y));
+            step = Mathf.Max(0.0001f, step);
+
+            float camH = mainCamera.orthographicSize * 2f;
+            float camW = camH * mainCamera.aspect;
+
+            int globalW = Mathf.Max(rugW, Mathf.FloorToInt(camW / step));
+            int globalH = Mathf.Max(rugH, Mathf.FloorToInt(camH / step));
+            globalW = Mathf.Max(1, globalW);
+            globalH = Mathf.Max(1, globalH);
+
+            _globalMapping.InitLatticeAligned(mainCamera, globalW, globalH, _rugMapping);
+            _rugOriginGlobal = _globalMapping.RugOriginGlobal;
+
+            var blocked = new List<Int2>();
+            foreach (Transform cell in gridRoot)
+            {
+                if (!cell.name.Contains("Cell_") || !cell.name.Contains("_BLOCKED")) continue;
+                if (TryParseCellName(cell.name, out var coord))
+                {
+                    var global = coord + _rugOriginGlobal;
+                    blocked.Add(new Int2(global.x, global.y));
+                }
+            }
+
+            var occupied = new List<Int2>();
+            if (dummyPiece != null)
+            {
+                var dummyCell = _globalMapping.WorldToGlobalCellRound(dummyPiece.position);
+                if (_globalMapping.IsInside(dummyCell))
+                    occupied.Add(new Int2(dummyCell.x, dummyCell.y));
+            }
+
+            _brain.Initialize(
+                globalW,
+                globalH,
+                blocked,
+                occupied,
+                shapeDefinition != null ? ToInt2Array(shapeDefinition.baseCells) : null,
+                shapeDefinition != null ? new Int2(shapeDefinition.pivot.x, shapeDefinition.pivot.y) : Int2.zero,
+                new Int2(_rugOriginGlobal.x, _rugOriginGlobal.y),
+                _rugWidthCells,
+                _rugHeightCells
+            );
+
+            EnsureScratch(_brain.LocalCells.Length);
+
+            _hasEverLocked = false;
+            _pickedUpFromBoardThisTouch = false;
+            _held = false;
+            _dragStarted = false;
+            _movedBeyondThreshold = false;
+            _velocity = Vector3.zero;
+
+            _brain.ResetCandidate();
+            if (ghostView != null)
+            {
+                ghostView.SetVisible(false);
+            }
+            if (gameFeelFx != null)
+            {
+                gameFeelFx.SetInvalidVisual(false);
+            }
+
+            ClearHoverTint();
+            ClearPlacedCells();
+            ApplyBaseCellColors();
+            UpdatePlacedHighlight();
         }
 
         private void OnPointerDown(PointerState pointer)
@@ -343,7 +441,7 @@ namespace Phase0
                     gameFeelFx.SetDragging(true);
                     gameFeelFx.OnPickup();
                 }
-                Phase0Haptics.Pulse(this, count: 1);
+                Phase0Haptics.OnGrab();
             }
 
             // Direct manipulation: once movement begins, piece follows finger with spring delay.
@@ -435,6 +533,7 @@ namespace Phase0
                 {
                     gameFeelFx.OnRotateTap();
                 }
+                Phase0Haptics.OnRotate();
 
                 if (ghostView != null) ghostView.SetVisible(false);
                 ClearHoverTint();
@@ -463,7 +562,7 @@ namespace Phase0
                 {
                     gameFeelFx.OnDropValid();
                 }
-                Phase0Haptics.Pulse(this, count: 2);
+                Phase0Haptics.OnValidPlace();
             }
             else
             {
@@ -493,7 +592,7 @@ namespace Phase0
 
                 PlaySnapTween(activePieceRoot.position, returnPos, isValid: false);
 
-                Phase0Haptics.Pulse(this, count: 3, intervalSeconds: 0.05f);
+                Phase0Haptics.OnReject();
 
                 SyncPlacedCellsFromBrain();
                 ApplyBaseCellColors();
@@ -614,6 +713,7 @@ namespace Phase0
     if (shouldSwitch && _brain.HasCandidate && _brain.CandidateOriginCell != beforeOrigin)
     {
         _lastHoverSwitchTime = Time.unscaledTime;
+        Phase0Haptics.OnHoverSnap();
     }
 
     // Compute validity flags for invalid visual (independent of ghost visibility)
